@@ -320,7 +320,7 @@ if __name__ == "__main__":
         del cli_cfg.resume_run_id
     else:
         assert "run_id" in cli_cfg
-        del cli_cfg.run_id
+        # del cli_cfg.run_id
 
     if cli_cfg.get("overfit", False):
         cfg = update_cfg_overfit(cfg)
@@ -335,7 +335,22 @@ if __name__ == "__main__":
         cli_cfg,
     )
 
-    assert cfg.run_id is not None
+     # assert cfg.run_id is not None
     logger.info(f"{Fore.GREEN}Running training of {cfg.run_id} ... {Style.RESET_ALL}")
     cfg.save_dir = str(EXP_DIR / cfg.run_id)
+
+
+    # TODO: VZ Change this for the BOP dataset
+     # google scanned objects
+    cfg.train_datasets = [
+        DatasetConfig(
+            ds_name="bproc",
+            mesh_obj_ds_name="bproc",
+            renderer_obj_ds_name="bproc",
+            # mesh_obj_ds_name="gso.filters=10mb_20k.pointcloud",
+            # renderer_obj_ds_name="gso.filters=10mb_20k.panda3d_bam",
+        )
+    ] # TODO: ERROR with the path and stuff
+
     train_megapose(cfg)
+
