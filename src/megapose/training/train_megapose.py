@@ -139,6 +139,7 @@ def train_megapose(cfg: TrainingConfig) -> None:
                 this_dataset_config.ds_name,
                 load_depth=cfg.input_depth,
             )
+
             if isinstance(ds, WebSceneDataset):
                 assert not deterministic
                 iterator: IterableSceneDataset = IterableWebSceneDataset(
@@ -151,10 +152,16 @@ def train_megapose(cfg: TrainingConfig) -> None:
 
             for _ in range(this_dataset_config.n_repeats):
                 scene_dataset_iterators.append(iterator)
-        return IterableMultiSceneDataset(scene_dataset_iterators)
-
+        return IterableMultiSceneDataset(scene_dataset_iterators) 
+    # print("HERE")
+    # print(cfg.train_datasets)
     scene_ds_train = make_iterable_scene_dataset(cfg.train_datasets)
 
+    # print(scene_ds_train)
+
+    # print (cfg.background_augmentation)    
+    cfg.background_augmentation = False  # NEEDS SOME OTHER DATASET TO WORK SO DISABLED FOR NOW
+    # breakpoint()
     # Datasets
     ds_train = PoseDataset(
         scene_ds_train,
@@ -166,7 +173,7 @@ def train_megapose(cfg: TrainingConfig) -> None:
         depth_augmentation_level=cfg.depth_augmentation_level,
         keep_labels_set=this_rank_labels,
     )
-
+    # breakpoint()
     ds_iter_train = DataLoader(
         ds_train,
         batch_size=cfg.batch_size,

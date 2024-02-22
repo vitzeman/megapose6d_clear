@@ -114,6 +114,11 @@ def make_scene_dataset(
         ds = BOPDataset(ds_dir, split="test", label_format="lm-{label}")
         ds = keep_bop19(ds)
 
+    # TODO: [VZ] CUSTOM BPROC DATASET BlenderProcLike
+    elif ds_name == "bproc":
+        ds_dir = BOP_DS_DIR / "bproc" # Path type 
+        ds = BOPDataset(ds_dir, split="train", label_format="bproc-{label}")
+
     # Non-BOP challenge BOP dataset splits
     elif ds_name == "tless.primesense.train":
         ds_dir = BOP_DS_DIR / "tless"
@@ -223,6 +228,10 @@ def make_object_dataset(ds_name: str) -> RigidObjectDataset:
         ds = BOPObjectDataset(BOP_DS_DIR / "ruapc/models", label_format="ruapc-{label}")
     elif ds_name == "hope":
         ds = BOPObjectDataset(BOP_DS_DIR / "hope/models", label_format="hope-{label}")
+
+    # TODO: [VZ] CUSTOM BPROC DATASET
+    elif ds_name == "bproc":
+        ds = BOPObjectDataset(BOP_DS_DIR / "bproc/models", label_format="bproc-{label}")
 
     # BOP models converted for Panda3D
     # TODO: Is this necessary ?

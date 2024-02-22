@@ -29,7 +29,7 @@ import megapose
 PROJECT_ROOT = Path(megapose.__file__).parent.parent.parent
 PROJECT_DIR = PROJECT_ROOT
 LOCAL_DATA_DIR = Path(os.environ.get("MEGAPOSE_DATA_DIR", Path(PROJECT_DIR) / "local_data"))
-BOP_DS_DIR = LOCAL_DATA_DIR / "bop_datasets"
+BOP_DS_DIR = LOCAL_DATA_DIR / "bop_datasets" # TODO [VZ]Change this to get the BOP dataset
 NB_DATA_DIR = LOCAL_DATA_DIR / "notebook_data"
 SHAPENET_DIR = LOCAL_DATA_DIR / "shapenetcorev2"
 WDS_DS_DIR = LOCAL_DATA_DIR / "webdatasets"
@@ -46,7 +46,7 @@ PYTHON_BIN_PATH = Path(os.environ["CONDA_PREFIX"]) / "bin/python"
 
 BOP_PANDA3D_DS_DIR = LOCAL_DATA_DIR / "bop_models_panda3d"
 
-GSO_DIR = LOCAL_DATA_DIR / "google_scanned_objects"
+GSO_DIR = LOCAL_DATA_DIR / "dataset" / "webdatasets"/ "google_scanned_objects"
 GSO_ORIG_DIR = GSO_DIR / "models_orig"
 GSO_NORMALIZED_DIR = GSO_DIR / "models_normalized"
 GSO_SCALED_DIR = GSO_DIR / "models_bop-renderer_scale=0.1"
