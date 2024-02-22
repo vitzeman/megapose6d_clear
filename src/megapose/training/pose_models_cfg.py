@@ -36,10 +36,8 @@ logger = get_logger(__name__)
 def check_update_config(cfg: TrainingConfig) -> TrainingConfig:
     """Useful for loading models previously trained with different configurations."""
 
-    cfg.is_coarse_compat = False
     # Detect old coarse model definition
     if hasattr(cfg, "input_strategy") and cfg.input_strategy == "input=obs+one_render":
-        cfg.is_coarse_compat = True
         cfg.n_rendered_views = 1
         cfg.multiview_type = "1view_TCO"
         cfg.predict_rendered_views_logits = True
