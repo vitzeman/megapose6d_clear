@@ -29,7 +29,8 @@ import megapose
 PROJECT_ROOT = Path(megapose.__file__).parent.parent.parent
 PROJECT_DIR = PROJECT_ROOT
 LOCAL_DATA_DIR = Path(os.environ.get("MEGAPOSE_DATA_DIR", Path(PROJECT_DIR) / "local_data"))
-BOP_DS_DIR = LOCAL_DATA_DIR / "bop_datasets" # TODO [VZ]Change this to get the BOP dataset
+# BOP_DS_DIR = LOCAL_DATA_DIR / "bop_datasets" # TODO [VZ]Change this to get the BOP dataset
+BOP_DS_DIR = Path("shared_datasets")
 NB_DATA_DIR = LOCAL_DATA_DIR / "notebook_data"
 SHAPENET_DIR = LOCAL_DATA_DIR / "shapenetcorev2"
 WDS_DS_DIR = LOCAL_DATA_DIR / "webdatasets"
