@@ -125,6 +125,7 @@ class PosePredictor(nn.Module):
             self.heads["pose"] = self.pose_fc
 
         self.predict_rendered_views_logits = predict_rendered_views_logits
+        print("Number of rendered views", self.n_rendered_views)
         if self.predict_rendered_views_logits:
             self.views_logits_head = nn.Linear(n_features, self.n_rendered_views, bias=True)
             self.heads["renderings_logits"] = self.views_logits_head

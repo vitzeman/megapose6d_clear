@@ -30,11 +30,11 @@ def change_keys_of_older_models(state_dict):
         else:
             new_k = k
 
-        if new_k in  ["views_logits_head.weight"]:
-            print("-------CHANGING STUFF")
-            new_k = "pose_fc.weight"
-        elif new_k in ["views_logits_head.bias"]:
-            new_k = "pose_fc.bias"
+        # if new_k in  ["views_logits_head.weight"]:
+        #     print("-------CHANGING STUFF")
+        #     new_k = "pose_fc.weight"
+        # elif new_k in ["views_logits_head.bias"]:
+        #     new_k = "pose_fc.bias"
 
         new_state_dict[new_k] = state_dict[k]
     return new_state_dict

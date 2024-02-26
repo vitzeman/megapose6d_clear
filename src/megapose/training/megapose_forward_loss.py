@@ -69,6 +69,7 @@ def megapose_forward_loss(
     device, dtype = TCO_gt.device, TCO_gt.dtype
 
     n_hypotheses = cfg.n_hypotheses
+    print("NUM hypotheses", n_hypotheses)
     bce_loss = nn.BCEWithLogitsLoss(reduction="none").cuda()
 
     hypotheses_image_ids = (
@@ -124,9 +125,11 @@ def megapose_forward_loss(
             views_permutation[1, b, :] = np.random.permutation(n_candidate_views)[:n_hypotheses]
             positive_idx = np.where(views_permutation[1, b] == 0)[0]
             is_hypothesis_positive[b, positive_idx] = 1
+            #print("NUMBER OF POSITIVE HYPOTHESES", len(positive_idx))
             if len(positive_idx) == 0:
+                
                 # 30% of the time set positive view to be in the batch
-                if np.random.rand() > 0.3:
+                if np.random.rand() > 0:
                     positive_idx = np.random.randint(cfg.n_rendered_views)
                     views_permutation[1, b, positive_idx] = 0
                     is_hypothesis_positive[b, positive_idx] = 1
@@ -216,11 +219,12 @@ def megapose_forward_loss(
             rendering_logits.flatten(1, 3),
             torch.tensor(is_hypothesis_positive, dtype=torch.float, device=device),
         ).unsqueeze(-1)
+        print("Loss Alpha param", cfg.loss_alpha_renderings_confidence)
         meters["loss_renderings_confidence"].add(loss_renderings_confidence.mean().item())
         loss_hypotheses += cfg.loss_alpha_renderings_confidence * loss_renderings_confidence
 
     loss = loss_hypotheses.mean()
-
+    print(loss.item())   
     meters["loss_total"].add(loss.item())
 
     if make_visualization:
