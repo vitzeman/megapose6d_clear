@@ -68,6 +68,7 @@ from megapose.utils.distributed import (
 from megapose.utils.logging import get_logger
 from megapose.utils.random import get_unique_seed, set_seed, temp_numpy_seed
 from megapose.utils.resources import get_cuda_memory, get_gpu_memory, get_total_memory, assign_gpu
+from megapose.utils.models_compat import change_keys_of_older_models
 
 
 def worker_init_fn(worker_id: int) -> None:
@@ -252,9 +253,10 @@ def train_megapose(cfg: TrainingConfig) -> None:
     print("HERE Weigths")
     print(cfg.run_id_pretrain)
     if cfg.run_id_pretrain is not None:
-        pretrain_path = EXP_DIR / cfg.run_id_pretrain / "checkpoint.pth.tar"
+        pretrain_path = "/home/shareduser/Projects/megapose6d_clear/local_data/megapose-models/" + cfg.run_id_pretrain + "/checkpoint.pth.tar"
         print(pretrain_path)
         pretrain_ckpt = torch.load(pretrain_path)["state_dict"]
+        pretrain_ckpt = change_keys_of_older_models(pretrain_ckpt)
         model.load_state_dict(pretrain_ckpt)
         logger.info(f"Using pretrained model from {pretrain_path}.")
 

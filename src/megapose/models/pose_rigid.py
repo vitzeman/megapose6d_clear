@@ -528,6 +528,7 @@ class PosePredictor(nn.Module):
             tCR = TCO_input[..., :3, [-1]] + TCO_input[..., :3, :3] @ tOR.unsqueeze(-1)
             tCR = tCR.squeeze(-1)
 
+            print(self.multiview_type)
             TCV_O_input = make_TCO_multiview(
                 TCO=TCO_input,
                 tCR=tCR,

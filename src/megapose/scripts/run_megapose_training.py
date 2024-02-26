@@ -366,6 +366,10 @@ if __name__ == "__main__":
     cfg.batch_size = 64
     cfg.hardware.n_gpus = 4
     cfg.n_dataloader_workers = 64
+    # cfg.run_id_pretrain = "coarse-rgb-906902141"
+    cfg.run_id_pretrain = "refiner-rgb-653307694"
+    cfg.n_rendered_views= 4
+    cfg.multiview_type = "front_3views"
 
     # print("HERE CUDA VISIB LAST:")
     # print(torch.cuda.device_count())

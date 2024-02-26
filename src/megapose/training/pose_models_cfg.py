@@ -94,11 +94,17 @@ def create_model_pose(
     n_normals_channels = 3 if cfg.render_normals else 0
     n_rendered_depth_channels = 1 if cfg.render_depth else 0
     n_depth_channels = 1 if cfg.input_depth else 0
+    print("_________________________________")
+    print(n_normals_channels)
+    print(n_rendered_depth_channels)
+    print(n_depth_channels)
+    print(cfg.n_rendered_views)
     # Assumes that if you are rendering depth you are also
     # inputting it from the model
     n_inputs = (n_channels + n_depth_channels) + (
         (n_channels + n_normals_channels + n_rendered_depth_channels) * cfg.n_rendered_views
     )
+    # n_inputs = 27
     backbone_str = cfg.backbone_str
     render_size = (240, 320)
     if "vanilla_resnet34" == backbone_str:
@@ -124,6 +130,8 @@ def create_model_pose(
 
 
     logger.debug(f"Backbone: {backbone_str}")
+    print("------")
+    print(cfg.multiview_type)
     backbone.n_inputs = n_inputs
     model = PosePredictor(
         backbone=backbone,
