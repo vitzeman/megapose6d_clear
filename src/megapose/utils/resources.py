@@ -56,11 +56,13 @@ def get_gpu_memory():
     devices = os.environ.get(
         "CUDA_VISIBLE_DEVICES",
     ).split(",")
-    assert len(devices) == 1
+    # assert len(devices) == 1
     out = subprocess.check_output(["nvidia-smi", "--id=" + str(devices[0]), "-q", "--xml-format"])
+
     tree = ET.fromstring(out)
     gpu = tree.findall("gpu")[0]
-    memory = float(gpu.find("fb_memory_usage").find("used").text.split(" ")[0]) / 1024
+    memory = float(gpu.find("fb_memory_usage").find("used").text.split(" ")[0]) # / 1024
+
     return memory
 
 

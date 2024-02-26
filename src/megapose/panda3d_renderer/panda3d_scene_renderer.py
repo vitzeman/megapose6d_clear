@@ -82,7 +82,7 @@ class App(ShowBase):
         )
         assert "CUDA_VISIBLE_DEVICES" in os.environ
         devices = os.environ["CUDA_VISIBLE_DEVICES"].split(",")
-        assert len(devices) == 1
+        # assert len(devices) == 1
         if "EGL_VISIBLE_DEVICES" not in os.environ:
             out = subprocess.check_output(
                 ["nvidia-smi", "--id=" + str(devices[0]), "-q", "--xml-format"]

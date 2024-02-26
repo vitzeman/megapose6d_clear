@@ -142,8 +142,29 @@ def load_pose_models(
         model.config = cfg
         return model
 
+    def load_model_trained(run_id: str, renderer: Panda3dBatchRenderer) -> PosePredictor:
+        if run_id is None:
+            return
+        trained_path = "/home/shareduser/Projects/megapose6d_clear/local_data/experiments/aaaa/"
+        run_dir = models_root / run_id
+        cfg: TrainingConfig = load_cfg(trained_path + "config.yaml")
+        cfg = check_update_config_pose(cfg)
+        model = create_model_pose(cfg, renderer=renderer, mesh_db=mesh_db_batched)
+        # ckpt = torch.load(run_dir / "checkpoint.pth.tar")
+        ckpt = torch.load(trained_path + "checkpoint.pth.tar")
+        # print(ckpt)
+        ckpt = ckpt["state_dict"]
+        ckpt = change_keys_of_older_models(ckpt)
+        model.load_state_dict(ckpt)
+        model = model.cuda().eval()
+        model.cfg = cfg
+        model.config = cfg
+        return model
+    
+    
+
     coarse_model = load_model(coarse_run_id, coarse_renderer)
-    refiner_model = load_model(refiner_run_id, refiner_renderer)
+    refiner_model = load_model_trained(refiner_run_id, refiner_renderer)
 
     return coarse_model, refiner_model, mesh_db
 

@@ -38,7 +38,7 @@ class DatasetConfig:
 @dataclass
 class HardwareConfig:
     n_cpus: int = 8
-    n_gpus: int = 1
+    n_gpus: int = 4
 
 
 @dataclass
@@ -141,5 +141,5 @@ class TrainingConfig(omegaconf.dictconfig.DictConfig):
     cuda_timing: bool = False
 
     # Infos
-    global_batch_size: Optional[int] = None
+    global_batch_size: Optional[int] = 64
     hardware: HardwareConfig = HardwareConfig()

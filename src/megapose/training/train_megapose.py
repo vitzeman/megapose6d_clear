@@ -31,6 +31,7 @@ from torch.backends import cudnn
 from torch.utils.data import DataLoader
 from torchnet.meter import AverageValueMeter
 from tqdm import tqdm
+from torch.utils.data.distributed import DistributedSampler
 
 # MegaPose
 from megapose.config import EXP_DIR
@@ -43,6 +44,7 @@ from megapose.datasets.scene_dataset import (
     RandomIterableSceneDataset,
     SceneDataset,
 )
+from megapose.datasets.samplers import DistributedSceneSampler, CustomDistributedSampler
 from megapose.datasets.web_scene_dataset import IterableWebSceneDataset, WebSceneDataset
 from megapose.lib3d.rigid_mesh_database import MeshDataBase
 from megapose.panda3d_renderer.panda3d_batch_renderer import Panda3dBatchRenderer
@@ -65,7 +67,7 @@ from megapose.utils.distributed import (
 )
 from megapose.utils.logging import get_logger
 from megapose.utils.random import get_unique_seed, set_seed, temp_numpy_seed
-from megapose.utils.resources import get_cuda_memory, get_gpu_memory, get_total_memory
+from megapose.utils.resources import get_cuda_memory, get_gpu_memory, get_total_memory, assign_gpu
 
 
 def worker_init_fn(worker_id: int) -> None:
@@ -86,6 +88,7 @@ def train_megapose(cfg: TrainingConfig) -> None:
 
     set_seed(get_rank())
     world_size = get_world_size()
+
 
     logger.info(f"Connection established with {world_size} gpus.")
     cfg.global_batch_size = world_size * cfg.batch_size
@@ -174,6 +177,14 @@ def train_megapose(cfg: TrainingConfig) -> None:
         keep_labels_set=this_rank_labels,
     )
     # breakpoint()
+    #train_sampler = torch.utils.data.distributed.DistributedSampler(
+    #ds_train,
+    #num_replicas=world_size,
+    #rank=get_rank()
+    #)
+
+    #train_sampler =  CustomDistributedSampler(scene_ds_train, num_replicas=world_size, rank= get_rank(),epoch_size=cfg.n_epochs)
+
     ds_iter_train = DataLoader(
         ds_train,
         batch_size=cfg.batch_size,
@@ -183,6 +194,21 @@ def train_megapose(cfg: TrainingConfig) -> None:
         persistent_workers=True,
         pin_memory=True,
     )
+    
+    #ds_iter_train = DataLoader(
+    #    ds_train,
+    #    batch_size=cfg.batch_size,
+    #    num_workers=cfg.n_dataloader_workers,
+    #    collate_fn=ds_train.collate_fn,
+    #    worker_init_fn=worker_init_fn,
+    #    #persistent_workers=True,
+    #    #pin_memory=True,
+    #    sampler= train_sampler,
+    #    shuffle=False,
+    #)
+
+
+
     iter_train = iter(ds_iter_train)
 
     ds_iter_val = None
@@ -223,8 +249,11 @@ def train_megapose(cfg: TrainingConfig) -> None:
 
     model = create_model_pose(cfg=cfg, renderer=renderer, mesh_db=mesh_db).cuda()
 
+    print("HERE Weigths")
+    print(cfg.run_id_pretrain)
     if cfg.run_id_pretrain is not None:
         pretrain_path = EXP_DIR / cfg.run_id_pretrain / "checkpoint.pth.tar"
+        print(pretrain_path)
         pretrain_ckpt = torch.load(pretrain_path)["state_dict"]
         model.load_state_dict(pretrain_ckpt)
         logger.info(f"Using pretrained model from {pretrain_path}.")
@@ -250,8 +279,11 @@ def train_megapose(cfg: TrainingConfig) -> None:
     if cfg.sync_batchnorm:
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
     model = sync_model(model)
+    # model = torch.nn.parallel.DistributedDataParallel(
+    #     model, device_ids=[torch.cuda.current_device()], output_device=torch.cuda.current_device()
+    # )
     model = torch.nn.parallel.DistributedDataParallel(
-        model, device_ids=[torch.cuda.current_device()], output_device=torch.cuda.current_device()
+        model, device_ids=None, output_device=None
     )
 
     optimizer = make_optimizer(model.parameters(), cfg)
@@ -271,6 +303,12 @@ def train_megapose(cfg: TrainingConfig) -> None:
     optimizer._step_count = 0  # type: ignore
 
     scaler = torch.cuda.amp.GradScaler()
+    # print('sdfsdf')
+    # print("cuda_memory",get_cuda_memory())
+    # print("gpu_memory", get_gpu_memory())
+    # print("cpu_memory", get_total_memory())
+    # print("assiogn gpu", assign_gpu())
+    # breakpoint()
 
     for epoch in range(start_epoch, cfg.n_epochs + 1):
         meters_train: Dict[str, AverageValueMeter] = defaultdict(lambda: AverageValueMeter())

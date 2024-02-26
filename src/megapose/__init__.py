@@ -22,17 +22,23 @@ import cv2
 
 
 def assign_gpu() -> None:
-    if "CUDA_VISIBLE_DEVICES" in os.environ:
-        device_ids = os.environ["CUDA_VISIBLE_DEVICES"]
-        device_ids = device_ids.split(",")
-    else:
-        device_ids = range(int(os.environ.get("LOCAL_WORLD_SIZE", 1)))
-    local_rank = int(os.environ.get("LOCAL_RANK", 0))
-    assert local_rank < len(device_ids)
-    cuda_id = int(device_ids[local_rank])
-    os.environ["CUDA_VISIBLE_DEVICES"] = str(cuda_id)
-    if "SLURM_JOB_NODELIST" in os.environ:
-        os.environ["EGL_VISIBLE_DEVICES"] = str(cuda_id)
+    os.environ["CUDA_VISIBLE_DEVICES"]="0,1,2,3"
+    # if "CUDA_VISIBLE_DEVICES" in os.environ:
+    #     device_ids = os.environ["CUDA_VISIBLE_DEVICES"]
+    #     device_ids = device_ids.split(",")
+
+    # else:
+    #     device_ids = range(int(os.environ.get("LOCAL_WORLD_SIZE", 1)))
+    # local_rank = int(os.environ.get("LOCAL_RANK", 1))
+    # assert local_rank < len(device_ids)
+    # cuda_id = int(device_ids[local_rank])
+    # os.environ["CUDA_VISIBLE_DEVICES"] = str(cuda_id)
+    # if "SLURM_JOB_NODELIST" in os.environ:
+    #     os.environ["EGL_VISIBLE_DEVICES"] = str(cuda_id)
+    # print(device_ids)
+
+    
+
 
 
 assign_gpu()
