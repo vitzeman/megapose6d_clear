@@ -36,22 +36,34 @@ limitations under the License.
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE
 
+
 # Standard Library
 import os
 from typing import List, Optional
+
 
 # Third Party
 import numpy as np
 from colorama import Fore, Style
 from omegaconf import OmegaConf
-
+# import torch
+# print("HERE CUDA VISIB:")
+# print(torch.cuda.device_count())
+# print()
 # MegaPose
+
+
+
 from megapose.bop_config import BOP_CONFIG
 from megapose.config import EXP_DIR
 from megapose.training.train_megapose import DatasetConfig, train_megapose
 from megapose.training.training_config import HardwareConfig, TrainingConfig
 from megapose.utils.logging import get_logger, set_logging_level
+# os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3,4,5,6,7"
 
+# print("HERE 2 CUDA VISIB:")
+# print(torch.cuda.device_count())
+# print()
 logger = get_logger(__name__)
 
 
@@ -304,7 +316,7 @@ if __name__ == "__main__":
     cfg: TrainingConfig = OmegaConf.structured(TrainingConfig)
     cfg.hardware = HardwareConfig(
         n_cpus=int(os.environ.get("N_CPUS", 10)),
-        n_gpus=int(os.environ.get("WORLD_SIZE", 1)),
+        n_gpus=int(os.environ.get("WORLD_SIZE", 4)),
     )
     if "config_id" in cli_cfg:
         assert "resume_run_id" not in cli_cfg
@@ -351,6 +363,16 @@ if __name__ == "__main__":
             # renderer_obj_ds_name="gso.filters=10mb_20k.panda3d_bam",
         )
     ] # TODO: ERROR with the path and stuff
+    cfg.batch_size = 64
+    cfg.hardware.n_gpus = 4
+    cfg.n_dataloader_workers = 64
+
+    # print("HERE CUDA VISIB LAST:")
+    # print(torch.cuda.device_count())
+    # print()
+    # print(torch.distributed.is_available())
+    # torch.distributed.init_process_group("nccl", rank=1, world_size=8)
+    
 
     train_megapose(cfg)
 

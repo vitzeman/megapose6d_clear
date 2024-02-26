@@ -100,7 +100,7 @@ def get_world_size() -> int:
         world_size = 1
     else:
         world_size = torch.distributed.get_world_size()
-    return world_size
+    return 4
 
 
 def reduce_dict(
@@ -135,12 +135,12 @@ def reduce_dict(
 
 
 def init_distributed_mode() -> None:
-    assert torch.cuda.device_count() == 1
+    # assert torch.cuda.device_count() == 1
     if "MASTER_PORT" not in os.environ:
-        os.environ["MASTER_PORT"] = str(12345)
-        os.environ["MASTER_ADDR"] = "127.0.0.1"
-        os.environ["WORLD_SIZE"] = "1"
-        os.environ["RANK"] = "0"
+        os.environ["MASTER_PORT"] = str(12365)
+        os.environ["MASTER_ADDR"] = "127.0.1.1"
+        # os.environ["WORLD_SIZE"] = "1"
+        # os.environ["RANK"] = "0"
 
     rank = int(os.environ.get("RANK", 0))
     world_size = int(os.environ.get("WORLD_SIZE", 1))
@@ -150,5 +150,6 @@ def init_distributed_mode() -> None:
         rank=rank,
         world_size=world_size,
         timeout=datetime.timedelta(seconds=4 * 1800),  # 2 hours
+        # timeout=5000
     )
     torch.distributed.barrier()

@@ -115,6 +115,14 @@ def create_model_pose(
     else:
         raise ValueError("Unknown backbone", backbone_str)
 
+    # print(f"Backbone: {backbone_str}")
+    resnet_parameters = backbone.parameters()
+    for param in resnet_parameters:
+        # print(type(param), param.shape)
+        if param.shape[0] < 256:
+            param.requires_grad = False
+
+
     logger.debug(f"Backbone: {backbone_str}")
     backbone.n_inputs = n_inputs
     model = PosePredictor(

@@ -1,4 +1,4 @@
-name: megapose_clear
+name: megapose
 channels:
   - conda-forge
   - defaults
