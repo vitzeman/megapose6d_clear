@@ -62,6 +62,24 @@ def sync_config(
     dist.barrier()
     return cfg
 
+def sync_config_dva(
+    cfg: omegaconf.dictconfig.DictConfig,rank: int, world_size: int, local_fields: List[str] = []
+) -> omegaconf.dictconfig.DictConfig:
+    cfg_path = get_tmp_dir() / "config.yaml"
+    # if get_rank() == 0:
+    if rank == 0:
+        OmegaConf.save(cfg, cfg_path)
+    dist.barrier()
+    my_cfg = cfg
+    loaded_cfg = OmegaConf.load(cfg_path)
+    assert isinstance(loaded_cfg, omegaconf.dictconfig.DictConfig)
+    cfg = loaded_cfg
+    for local_field in local_fields:
+        if local_field in my_cfg:
+            cfg[local_field] = my_cfg[local_field]
+    dist.barrier()
+    return cfg
+
 
 def sync_model(model: Any) -> Any:
     sync_dir = get_tmp_dir() / "models"
@@ -72,6 +90,20 @@ def sync_model(model: Any) -> Any:
         torch.save(model.state_dict(), sync_ckpt)
     dist.barrier()
     if get_rank() > 0:
+        logger.info("load")
+        model.load_state_dict(torch.load(sync_ckpt))
+    dist.barrier()
+    return model
+
+def sync_model_dva(model: Any,rank, world_size) -> Any:
+    sync_dir = get_tmp_dir() / "models"
+    sync_dir.mkdir(exist_ok=True)
+    sync_ckpt = sync_dir / "sync.checkpoint"
+    if rank == 0 and world_size > 1:
+        logger.info("save")
+        torch.save(model.state_dict(), sync_ckpt)
+    dist.barrier()
+    if rank > 0:
         logger.info("load")
         model.load_state_dict(torch.load(sync_ckpt))
     dist.barrier()
@@ -96,11 +128,11 @@ def get_rank() -> int:
 
 
 def get_world_size() -> int:
-    if not torch.distributed.is_initialized():
-        world_size = 1
-    else:
-        world_size = torch.distributed.get_world_size()
-    return 4
+    # if not torch.distributed.is_initialized():
+    #     world_size = 1
+    # else:
+    #     world_size = torch.distributed.get_world_size()
+    return 8
 
 
 def reduce_dict(
@@ -116,7 +148,8 @@ def reduce_dict(
     have the averaged results. Returns a dict with the same fields as
     input_dict, after reduction.
     """
-    world_size = dist.get_world_size()
+    # world_size = dist.get_world_size()
+    world_size = 8
     if world_size < 2:
         return input_dict
     with torch.no_grad():
@@ -136,20 +169,21 @@ def reduce_dict(
 
 def init_distributed_mode() -> None:
     # assert torch.cuda.device_count() == 1
+
     if "MASTER_PORT" not in os.environ:
-        os.environ["MASTER_PORT"] = str(12365)
+        os.environ["MASTER_PORT"] = str(27445)
         os.environ["MASTER_ADDR"] = "127.0.1.1"
-        # os.environ["WORLD_SIZE"] = "1"
+        # os.environ["WORLD_SIZE"] = str(len(os.environ["CUDA_VISIBLE_DEVICES"].split(",")))
         # os.environ["RANK"] = "0"
 
     rank = int(os.environ.get("RANK", 0))
     world_size = int(os.environ.get("WORLD_SIZE", 1))
-    logger.info(f"Rank: {rank}, World size: {world_size}")
+
     torch.distributed.init_process_group(
         backend="nccl",
         rank=rank,
         world_size=world_size,
+        # timeout=datetime.timedelta(seconds=4),  # 4 seconds
         timeout=datetime.timedelta(seconds=4 * 1800),  # 2 hours
-        # timeout=5000
     )
     torch.distributed.barrier()

@@ -27,12 +27,14 @@ from typing import Dict, List, Set
 from dataclasses import dataclass
 from functools import partial
 from typing import Dict, List, Optional, Set
-
+from ..ngp_renderer.ngp_render_api import ngp_render
+import json
 # Third Party
 import numpy as np
 import panda3d as p3d
 from direct.showbase.ShowBase import ShowBase
 from tqdm import tqdm
+from scipy.spatial.transform import Rotation as R
 
 # MegaPose
 from megapose.datasets.object_dataset import RigidObjectDataset
@@ -82,7 +84,8 @@ class App(ShowBase):
         )
         assert "CUDA_VISIBLE_DEVICES" in os.environ
         devices = os.environ["CUDA_VISIBLE_DEVICES"].split(",")
-        # assert len(devices) == 1
+        print("device are ", devices)
+        #assert len(devices) == 1
         if "EGL_VISIBLE_DEVICES" not in os.environ:
             out = subprocess.check_output(
                 ["nvidia-smi", "--id=" + str(devices[0]), "-q", "--xml-format"]
@@ -94,6 +97,7 @@ class App(ShowBase):
             assert minor_number_el is not None
             dev_id = minor_number_el.text
             os.environ["EGL_VISIBLE_DEVICES"] = str(dev_id)
+
 
         super().__init__(windowType="offscreen")
         self.render.set_shader_auto()
@@ -226,6 +230,10 @@ class Panda3dSceneRenderer:
             if data_obj.remove_mesh_material:
                 obj_node.setMaterialOff(1)
             TWO = np_to_lmatrix4(data_obj.TWO.toHomogeneousMatrix())
+            # change this
+            # TWO = np.eye(4)
+            # TWO[:3,3] = data_obj.TWO.translation
+            # TWO = np_to_lmatrix4(TWO)
             obj_node.setMat(TWO)
             if data_obj.positioning_function is not None:
                 data_obj.positioning_function(root_node, obj_node)
@@ -315,6 +323,7 @@ class Panda3dSceneRenderer:
         setup_time = time.time() - start
 
         start = time.time()
+
         renderings = self.render_images(cameras, copy_arrays=copy_arrays, render_depth=render_depth)
         if render_normals:
             for object_node in object_nodes:
@@ -355,4 +364,57 @@ class Panda3dSceneRenderer:
 
         self.debug_data.timings["setup_time"] = setup_time
         self.debug_data.timings["render_time"] = render_time
+        return renderings
+
+    def render_scene_ngp(
+        self,
+        object_datas: List[Panda3dObjectData],
+        camera_datas: List[Panda3dCameraData],
+        light_datas: List[Panda3dLightData],
+        render_depth: bool = False,
+        copy_arrays: bool = True,
+        render_binary_mask: bool = False,
+        render_normals: bool = False,
+        clear: bool = True,
+    ) -> List[CameraRenderingData]:
+
+        renderings = []
+
+        for camera in camera_datas:
+            resolution = (camera.resolution[1], camera.resolution[0])
+            Intrinsics = camera.K
+            for object in object_datas:
+                Extrinsics = object.TWO.toHomogeneousMatrix()
+                label = object.label
+
+                root_path = os.path.split(os.path.split(os.path.split(os.path.split(__file__)[0])[0])[0])[0]
+                weight_path = os.path.join(root_path, "local_data", "examples", label, "ngp_weight", "base.ingp")
+                world_tranformation = json.loads(open(
+                    os.path.join(root_path, "local_data", "examples", label, "ngp_weight", "scale.json")).read())
+                mesh_transformation = np.array(world_tranformation['transformation'])
+                mesh_scale = world_tranformation["scale"]
+
+                ngp_renderer = ngp_render(weight_path)
+                ngp_renderer.set_resolution(resolution)
+                ngp_renderer.set_fov(Intrinsics)
+                ngp_renderer.set_exposure(0.0)
+                ngp_renderer.set_camera_matrix(Extrinsics, mesh_scale, mesh_transformation)
+
+                rgb = ngp_renderer.get_image_from_tranform("Shade")
+                rgb = np.array(rgb, dtype=np.uint8)
+                rendering = CameraRenderingData(rgb)
+
+                if render_normals:
+                    normal = ngp_renderer.get_image_from_tranform("Normals")
+                    normal = np.array(normal, dtype=np.uint8)
+                    rendering.normals = normal
+
+                if render_depth:
+                    depth = ngp_renderer.get_image_from_tranform("Depth")
+                    depth = np.array(depth, dtype=np.uint8)
+                    rendering.depth = depth
+
+
+                renderings.append(rendering)
+
         return renderings

@@ -54,7 +54,6 @@ class DistributedSceneSampler(Sampler):
     def __iter__(self):
         return iter(self.local_indices)
 
-
 class ListSampler(Sampler):
     def __init__(self, ids):
         self.ids = ids
@@ -89,3 +88,23 @@ class CustomDistributedSampler(Sampler):
             indices_shuffled = np.random.permutation(self.all_indices)[: self.total_epoch_size]
             local_indices = np.array_split(indices_shuffled, self.num_replicas)[self.rank]
         return iter(local_indices)
+
+class CustomiterableDataset(torch.utils.data.IterableDataset):
+    def __init__(self, start, end):
+        super(CustomiterableDataset, self).__init__()
+        self.start = start
+        self.end = end
+
+    def __iter__(self):
+        worker_info = torch.utils.data.get_worker_info()
+        if worker_info is None:
+            iter_start = self.start
+            iter_end = self.end
+        else:
+            per_worker = int(math.ceil((self.end - self.start) / float(worker_info.num_workers)))
+            worker_id = worker_info.id
+            iter_start = self.start + worker_info.id * per_worker
+            iter_end = min(iter_start + per_worker, self.end)
+        for i in range(iter_start, iter_end):
+            yield i
+

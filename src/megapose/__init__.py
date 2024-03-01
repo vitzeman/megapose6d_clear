@@ -22,31 +22,33 @@ import cv2
 
 
 def assign_gpu() -> None:
-    os.environ["CUDA_VISIBLE_DEVICES"]="0,1,2,3"
+    os.environ["CUDA_VISIBLE_DEVICES"]= "0,1,2,3,4"
+    # os.environ["CUDA_VISIBLE_DEVICES"]= "7"
     # if "CUDA_VISIBLE_DEVICES" in os.environ:
     #     device_ids = os.environ["CUDA_VISIBLE_DEVICES"]
     #     device_ids = device_ids.split(",")
-
     # else:
     #     device_ids = range(int(os.environ.get("LOCAL_WORLD_SIZE", 1)))
+
+    # device_ids = os.environ["CUDA_VISIBLE_DEVICES"]
+    # device_ids = device_ids.split(",")
     # local_rank = int(os.environ.get("LOCAL_RANK", 1))
     # assert local_rank < len(device_ids)
     # cuda_id = int(device_ids[local_rank])
     # os.environ["CUDA_VISIBLE_DEVICES"] = str(cuda_id)
     # if "SLURM_JOB_NODELIST" in os.environ:
     #     os.environ["EGL_VISIBLE_DEVICES"] = str(cuda_id)
-    # print(device_ids)
-
-    
-
 
 
 assign_gpu()
 os.environ["MKL_NUM_THREADS"] = "1"
 os.environ["OMP_NUM_THREADS"] = "1"
+# os.environ["MKL_NUM_THREADS"] = str(os.cpu_count())
+# os.environ["OMP_NUM_THREADS"] = str(os.cpu_count())
 
 if "EGL_VISIBLE_DEVICES" not in os.environ:
-    os.environ['EGL_VISIBLE_DEVICES'] = '0'
+    os.environ['EGL_VISIBLE_DEVICES'] = str(len(os.environ["CUDA_VISIBLE_DEVICES"].split(",")))
+    # os.environ['EGL_VISIBLE_DEVICES'] = "0"
 
 for k in (
     "MKL_NUM_THREADS", "OMP_NUM_THREADS",

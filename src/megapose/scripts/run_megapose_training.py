@@ -56,7 +56,8 @@ from omegaconf import OmegaConf
 
 from megapose.bop_config import BOP_CONFIG
 from megapose.config import EXP_DIR
-from megapose.training.train_megapose import DatasetConfig, train_megapose
+# from megapose.training.train_megapose import DatasetConfig, train_megapose
+from megapose.training.training_megapose_distributed import train_megapose, DatasetConfig
 from megapose.training.training_config import HardwareConfig, TrainingConfig
 from megapose.utils.logging import get_logger, set_logging_level
 # os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3,4,5,6,7"
@@ -314,9 +315,13 @@ if __name__ == "__main__":
     logger.info(f"CLI config: \n {OmegaConf.to_yaml(cli_cfg)}")
 
     cfg: TrainingConfig = OmegaConf.structured(TrainingConfig)
+    # cfg.hardware = HardwareConfig(
+    #     n_cpus=int(os.environ.get("N_CPUS", 10)),
+    #     n_gpus=int(os.environ.get("WORLD_SIZE", 4)),
     cfg.hardware = HardwareConfig(
-        n_cpus=int(os.environ.get("N_CPUS", 10)),
-        n_gpus=int(os.environ.get("WORLD_SIZE", 4)),
+        # n_cpus=os.cpu_count(),
+        n_cpus=8,
+        n_gpus=8,
     )
     if "config_id" in cli_cfg:
         assert "resume_run_id" not in cli_cfg
@@ -363,15 +368,15 @@ if __name__ == "__main__":
             # renderer_obj_ds_name="gso.filters=10mb_20k.panda3d_bam",
         )
     ] # TODO: ERROR with the path and stuff
-    cfg.batch_size = 64
-    cfg.hardware.n_gpus = 4
-    cfg.n_dataloader_workers = 64
+    cfg.batch_size = 256
+    cfg.hardware.n_gpus = 8
+    cfg.n_dataloader_workers = 2
     cfg.run_id_pretrain = "coarse-rgb-906902141"
     cfg.n_rendered_views = 1
     cfg.predict_rendered_views_logits = True
     cfg.predict_pose_update = False
     cfg.hypotheses_init_method = "coarse_classif_multiview_paper"
-    cfg.n_hypotheses = 16
+    cfg.n_hypotheses = 5
 
     cfg.lr = 0.0003
     cfg.weight_decay = 0.0

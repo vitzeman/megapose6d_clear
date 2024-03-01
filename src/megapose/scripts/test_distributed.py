@@ -22,7 +22,7 @@ import os
 # Third Party
 import torch
 from torch.distributed.elastic.multiprocessing.errors import record
-
+import torch.multiprocessing as mp
 # MegaPose
 from megapose.utils.distributed import (
     get_rank,
@@ -31,19 +31,47 @@ from megapose.utils.distributed import (
     init_distributed_mode,
 )
 from megapose.utils.logging import get_logger
+import datetime
 
 logger = get_logger(__name__)
 
+def init_process(rank, size, fn, backend='gloo'):
+    """ Initialize the distributed environment. """
+    os.environ['MASTER_ADDR'] = '127.0.0.1'
+    os.environ['MASTER_PORT'] = '29500'
+    torch.distributed.init_process_group(backend, rank=rank, world_size=size)
+    fn(rank, size)
+
+def run(rank, size):
+    """ Distributed function to be implemented later. """
+    pass
 
 @record
 def main():
-    init_distributed_mode()
-    proc_id = get_rank()
-    n_tasks = get_world_size()
-    n_cpus = os.environ.get("N_CPUS", "not specified")
-    logger.info(f"Number of processes (=num GPUs): {n_tasks}")
-    logger.info(f"Process ID: {proc_id}")
-    logger.info(f"TMP Directory for this job: {get_tmp_dir()}")
+
+    # init_distributed_mode()
+    # proc_id = get_rank()
+    # n_tasks = get_world_size()
+
+    world_size = 8
+    # spawn a process for each GPU with different rank from 0 to n_tasks
+
+    if "MASTER_PORT" not in os.environ:
+        os.environ["MASTER_PORT"] = str(28475)
+        os.environ["MASTER_ADDR"] = "127.0.1.1"
+
+    processes = []
+    mp.set_start_method("spawn")
+    for rank in range(world_size):
+        p = mp.Process(target=init_process, args=(rank, world_size, run))
+        p.start()
+        processes.append(p)
+
+    # n_cpus = os.environ.get("N_CPUS", "not specified")
+    n_cpus = os.cpu_count()
+    # logger.info(f"Number of processes (=num GPUs): {n_tasks}")
+    # logger.info(f"Process ID: {proc_id}")
+    # logger.info(f"TMP Directory for this job: {get_tmp_dir()}")
     logger.info(f"GPU CUDA ID: {os.environ['CUDA_VISIBLE_DEVICES']}")
     logger.info(f"Num GPUS available: {torch.cuda.device_count()}")
     logger.info(f"GPU Properties: {torch.cuda.get_device_properties(0)}")

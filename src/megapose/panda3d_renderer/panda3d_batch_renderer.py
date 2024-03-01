@@ -13,23 +13,25 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-
-
-
+import os.path
 # Standard Library
 from dataclasses import dataclass
 from typing import List, Optional, Set, Union
-
+import json
 # Third Party
 import numpy as np
 import torch
 import torch.multiprocessing
+from pathlib import Path
 
 # MegaPose
 from megapose.datasets.object_dataset import RigidObjectDataset
 from megapose.lib3d.transform import Transform
 from megapose.lib3d.transform_ops import invert_transform_matrices
 from megapose.utils.logging import get_logger
+from megapose.ngp_renderer.ngp_render_api import ngp_render
+from megapose.config import LOCAL_DATA_DIR
+
 
 # Local Folder
 from .panda3d_scene_renderer import Panda3dSceneRenderer
@@ -40,7 +42,7 @@ from .types import (
     Panda3dObjectData,
     Resolution,
 )
-
+import time
 logger = get_logger(__name__)
 
 
@@ -125,6 +127,7 @@ def worker_loop(
                 render_depth=render_args.render_depth,
                 copy_arrays=True,  # ensures non-negative strid
             )
+
             renderings_ = renderings[0]
         else:
             h, w = scene_data.camera_data.resolution
@@ -133,7 +136,6 @@ def worker_loop(
                 normals=np.zeros((h, w, 1), dtype=np.uint8),
                 depth=np.zeros((h, w, 1), dtype=np.float32),
             )
-
         output = RenderOutput(
             data_id=render_args.data_id,
             rgb=torch.tensor(renderings_.rgb).share_memory_(),
@@ -303,6 +305,7 @@ class Panda3dBatchRenderer:
 
         self._out_queue: torch.multiprocessing.Queue = torch.multiprocessing.Queue()
 
+
         for n in range(self._n_workers):
             if preload_cache:
                 preload_labels = set(object_labels_split[n].tolist())
@@ -338,3 +341,81 @@ class Panda3dBatchRenderer:
 
     def __del__(self) -> None:
         self.stop()
+
+    def ngp_renderer(
+                self,
+                labels: List[str],
+                TCO: torch.Tensor,
+                K: torch.Tensor,
+                light_datas: List[List[Panda3dLightData]],
+                resolution: Resolution,
+                render_depth: bool = False,
+                render_mask: bool = False,
+                render_normals: bool = False,
+        ) -> BatchRenderOutput:
+
+        TCO = TCO.detach().cpu().numpy()
+        Intrinsics = K.detach().cpu().numpy()
+        new_base_dat_path = Path("/shared_datasets/example-train/meshes_ngp")
+        #labes_new = labels[0][6:]
+        labes = str(labels[0]).split("_")[-1]
+        labes_new = "object_" + str(int(labes))
+        weight_path = os.path.join(new_base_dat_path, labes_new, "base.ingp")
+        ngp_renderer = ngp_render(weight_path)
+        world_tranformation = json.loads(open(os.path.join(new_base_dat_path, labes_new,"transforms.json")).read())
+        #mesh_transformation = np.array(world_tranformation['transformation']
+        mesh_transformation = np.eye(4)
+        mesh_scale = world_tranformation["avg_len"]
+
+        list_rgbs = [None for _ in np.arange(len(labels))]
+        list_depths = [None for _ in np.arange(len(labels))]
+        list_normals = [None for _ in np.arange(len(labels))]
+
+        resolution = (resolution[1], resolution[0])
+
+
+
+        ngp_renderer.set_resolution(resolution)
+
+        for i in range(len(labels)):
+            Extrinsics = TCO[i]
+            K_single = Intrinsics[i]
+
+            ngp_renderer.set_fov(K_single)
+            ngp_renderer.set_exposure(0.0)
+            ngp_renderer.set_camera_matrix(Extrinsics, mesh_scale, mesh_transformation)
+
+            rgb = ngp_renderer.get_image_from_tranform("Shade")
+            normal = ngp_renderer.get_image_from_tranform("Normals")
+            depth = ngp_renderer.get_image_from_tranform("Depth")
+
+
+            # convert rgb to tensor
+            rgb = torch.tensor(rgb).share_memory_()
+            normal = torch.tensor(normal).share_memory_()
+            depth = torch.tensor(depth).share_memory_()
+
+            list_rgbs[i] = rgb
+            list_normals[i] = normal
+            list_depths[i] = depth
+
+        rgbs = torch.stack(list_rgbs).pin_memory().cuda(non_blocking=True)
+        rgbs = rgbs.float().permute(0, 3, 1, 2)/255
+
+        if render_depth:
+            depths = torch.stack(list_depths).pin_memory().cuda(non_blocking=True)
+            depths = depths.float().permute(0, 3, 1, 2)
+        else:
+            depths = None
+
+        if render_normals:
+            normals = torch.stack(list_normals).pin_memory().cuda(non_blocking=True)
+            normals = normals.float().permute(0, 3, 1, 2)/255
+        else:
+            normals = None
+
+        return BatchRenderOutput(
+            rgbs=rgbs,
+            depths=depths,
+            normals=normals,
+        )

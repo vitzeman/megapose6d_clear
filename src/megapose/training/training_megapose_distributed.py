@@ -14,7 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-
 # Standard Library
 import functools
 import os
@@ -44,7 +43,7 @@ from megapose.datasets.scene_dataset import (
     RandomIterableSceneDataset,
     SceneDataset,
 )
-from megapose.datasets.samplers import DistributedSceneSampler, CustomDistributedSampler
+from megapose.datasets.samplers import DistributedSceneSampler, CustomDistributedSampler, CustomiterableDataset
 from megapose.datasets.web_scene_dataset import IterableWebSceneDataset, WebSceneDataset
 from megapose.lib3d.rigid_mesh_database import MeshDataBase
 from megapose.panda3d_renderer.panda3d_batch_renderer import Panda3dBatchRenderer
@@ -63,20 +62,35 @@ from megapose.utils.distributed import (
     init_distributed_mode,
     reduce_dict,
     sync_config,
+    sync_config_dva,
     sync_model,
+    sync_model_dva,
 )
 from megapose.utils.logging import get_logger
 from megapose.utils.random import get_unique_seed, set_seed, temp_numpy_seed
 from megapose.utils.resources import get_cuda_memory, get_gpu_memory, get_total_memory, assign_gpu
 from megapose.utils.models_compat import change_keys_of_older_models
-
+from datetime import timedelta
 
 def worker_init_fn(worker_id: int) -> None:
     set_seed(get_unique_seed())
 
 
+def train_megapose(cfg):
 
-def train_megapose(cfg: TrainingConfig) -> None:
+    if "MASTER_PORT" not in os.environ:
+        os.environ["MASTER_PORT"] = str(12745)
+        os.environ["MASTER_ADDR"] = "127.0.1.1"
+
+    torch.multiprocessing.spawn(
+        train_megapose_worker,
+        args=(cfg,),
+        nprocs=cfg.hardware.n_gpus,
+        join=True,
+    )
+
+
+def train_megapose_worker( rank: int, cfg: TrainingConfig,) -> None:
     logger = get_logger("main")
     cudnn.benchmark = True
     torch.multiprocessing.set_sharing_strategy("file_system")
@@ -85,19 +99,16 @@ def train_megapose(cfg: TrainingConfig) -> None:
     cfg = check_update_config(cfg)
     logger.info(f"Training with cfg: \n {OmegaConf.to_yaml(cfg)}")
 
-    init_distributed_mode()
-    cfg = sync_config(cfg)
+    world_size = 8
+    dist.init_process_group(backend='nccl', world_size=world_size, rank=rank, timeout=timedelta(seconds=20))
 
-    set_seed(get_rank())
-
-    world_size = get_world_size()
+    cfg = sync_config_dva(cfg, rank, world_size)
 
     logger.info(f"Connection established with {world_size} gpus.")
     cfg.global_batch_size = world_size * cfg.batch_size
     assert cfg.hardware.n_gpus == world_size
 
     def split_objects_across_gpus(obj_dataset: RigidObjectDataset) -> RigidObjectDataset:
-        rank, world_size = get_rank(), get_world_size()
         if cfg.split_objects_across_gpus:
             with temp_numpy_seed(0):
                 this_rank_labels = set(
@@ -135,8 +146,8 @@ def train_megapose(cfg: TrainingConfig) -> None:
 
     # Scene dataset
     def make_iterable_scene_dataset(
-        dataset_configs: List[DatasetConfig],
-        deterministic: bool = False,
+            dataset_configs: List[DatasetConfig],
+            deterministic: bool = False,
     ) -> IterableMultiSceneDataset:
         scene_dataset_iterators = []
         for this_dataset_config in dataset_configs:
@@ -157,17 +168,12 @@ def train_megapose(cfg: TrainingConfig) -> None:
 
             for _ in range(this_dataset_config.n_repeats):
                 scene_dataset_iterators.append(iterator)
-        return IterableMultiSceneDataset(scene_dataset_iterators) 
-    # print("HERE")
-    # print(cfg.train_datasets)
+        return IterableMultiSceneDataset(scene_dataset_iterators)
+
+
     scene_ds_train = make_iterable_scene_dataset(cfg.train_datasets)
-
-    # print(scene_ds_train)
-
-    # print (cfg.background_augmentation)    
     cfg.background_augmentation = False  # NEEDS SOME OTHER DATASET TO WORK SO DISABLED FOR NOW
-    # breakpoint()
-    # Datasets
+
     ds_train = PoseDataset(
         scene_ds_train,
         resize=cfg.input_resize,
@@ -178,40 +184,44 @@ def train_megapose(cfg: TrainingConfig) -> None:
         depth_augmentation_level=cfg.depth_augmentation_level,
         keep_labels_set=this_rank_labels,
     )
-    # breakpoint()
-    #train_sampler = torch.utils.data.distributed.DistributedSampler(
-    #ds_train,
-    #num_replicas=world_size,
-    #rank=get_rank()
-    #)
 
-    #train_sampler =  CustomDistributedSampler(scene_ds_train, num_replicas=world_size, rank= get_rank(),epoch_size=cfg.n_epochs)
+    # print("calculating dtaaset size")
+    # print(len(list(ds_train)))
+    #
+    # print("Total dataset size: ", total_ds)
 
     ds_iter_train = DataLoader(
         ds_train,
         batch_size=cfg.batch_size,
-        num_workers=cfg.n_dataloader_workers,
+        num_workers=8,
         collate_fn=ds_train.collate_fn,
         worker_init_fn=worker_init_fn,
-        persistent_workers=True,
-        pin_memory=True,
+        # persistent_workers=True,
+        # pin_memory=True,
     )
-    
-    #ds_iter_train = DataLoader(
-    #    ds_train,
+
+    iter_train = iter(ds_iter_train)
+
+    # train_sampler = torch.utils.data.distributed.DistributedSampler(
+    # cfg.train_datasets,
+    # num_replicas=world_size,
+    # rank=rank,
+    # shuffle=False,
+    # )
+
+    # ds_iter_train = DataLoader(
+    #    cfg.train_datasets,
     #    batch_size=cfg.batch_size,
-    #    num_workers=cfg.n_dataloader_workers,
-    #    collate_fn=ds_train.collate_fn,
-    #    worker_init_fn=worker_init_fn,
+    #    # num_workers=cfg.n_dataloader_workers,
+    #    # collate_fn=ds_train.collate_fn,
+    #    # worker_init_fn=worker_init_fn,
     #    #persistent_workers=True,
     #    #pin_memory=True,
     #    sampler= train_sampler,
-    #    shuffle=False,
-    #)
-
-
-
-    iter_train = iter(ds_iter_train)
+    #    # shuffle=False,
+    #     drop_last=True,
+    # )
+    # iteable_ds = CustomiterableDataset(cfg.train_datasets)
 
     ds_iter_val = None
     if len(cfg.val_datasets) > 0:
@@ -229,7 +239,7 @@ def train_megapose(cfg: TrainingConfig) -> None:
             ds_val,
             batch_size=cfg.batch_size,
             num_workers=cfg.n_dataloader_workers,
-            worker_init_fn=worker_init_fn,
+            # worker_init_fn=worker_init_fn,
             collate_fn=ds_train.collate_fn,
             persistent_workers=True,
             pin_memory=True,
@@ -279,24 +289,33 @@ def train_megapose(cfg: TrainingConfig) -> None:
     else:
         start_epoch = 1
 
-    if cfg.sync_batchnorm:
-        model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
-    model = sync_model(model)
-    # model = torch.nn.parallel.DistributedDataParallel(
-    #     model, device_ids=[torch.cuda.current_device()], output_device=torch.cuda.current_device()
-    # )
-    model = torch.nn.parallel.DistributedDataParallel(
-        model, device_ids=None, output_device=None
-    )
+    device = torch.device("cuda:" + str(rank) if torch.cuda.is_available() else "cpu")
+    print("Device: ", device)
+    # if cfg.sync_batchnorm:
+    #     model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
+    model = sync_model_dva(model, rank, world_size).to(device)
 
+    # model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[rank])
+    #
+    model = torch.nn.parallel.DistributedDataParallel(
+        model, device_ids=[torch.cuda.current_device()], output_device=torch.cuda.current_device()
+    )
+    # model = torch.nn.parallel.DistributedDataParallel(
+    #     model, device_ids=[rank],
+    # )
+
+    # model = torch.nn.parallel.DistributedDataParallel(
+    #     model, device_ids=None, output_device=None
+    # )
     optimizer = make_optimizer(model.parameters(), cfg)
 
-    this_rank_epoch_size = cfg.epoch_size // get_world_size()
+
+    this_rank_epoch_size = cfg.epoch_size // 8
     this_rank_n_batch_per_epoch = this_rank_epoch_size // cfg.batch_size
     # NOTE: LR schedulers "epoch" actually correspond to "batch"
     lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, make_lr_ratio_function(cfg))
     lr_scheduler.last_epoch = (  # type: ignore
-        start_epoch * this_rank_epoch_size // cfg.batch_size - 1
+            start_epoch * this_rank_epoch_size // cfg.batch_size - 1
     )
 
     lr_scheduler.step()
@@ -304,18 +323,14 @@ def train_megapose(cfg: TrainingConfig) -> None:
     optimizer._step_count = 1  # type: ignore
     lr_scheduler.step()
     optimizer._step_count = 0  # type: ignore
+    # print(" this rank epoch size: ", this_rank_epoch_size)
 
-    scaler = torch.cuda.amp.GradScaler()
-    # print('sdfsdf')
-    # print("cuda_memory",get_cuda_memory())
-    # print("gpu_memory", get_gpu_memory())
-    # print("cpu_memory", get_total_memory())
-    # print("assiogn gpu", assign_gpu())
-    # breakpoint()
 
     for epoch in range(start_epoch, cfg.n_epochs + 1):
         meters_train: Dict[str, AverageValueMeter] = defaultdict(lambda: AverageValueMeter())
         meters_val: Dict[str, AverageValueMeter] = defaultdict(lambda: AverageValueMeter())
+
+
 
         if cfg.add_iteration_epoch_interval is None:
             n_iterations = cfg.n_iterations
@@ -328,12 +343,14 @@ def train_megapose(cfg: TrainingConfig) -> None:
 
         def train() -> None:
             meters = meters_train
-            set_seed(epoch * get_rank() + get_rank())
+            # set_seed(epoch * rank + rank)
             model.train()
             pbar = tqdm(
                 range(this_rank_n_batch_per_epoch), ncols=120, disable=cfg.logging_style != "tqdm"
             )
+
             for n in pbar:
+                print(" iteration :", n, " rank :", rank,  "epoch : ", epoch)
                 start_iter = time.time()
                 t = time.time()
                 data = next(iter_train)
@@ -344,6 +361,7 @@ def train_megapose(cfg: TrainingConfig) -> None:
                 debug_dict: Dict[str, Any] = dict()
                 timer_forward = CudaTimer(enabled=cfg.cuda_timing)
                 timer_forward.start()
+
                 with torch.cuda.amp.autocast():
                     loss = forward_loss_fn(
                         data=data,
@@ -388,7 +406,7 @@ def train_megapose(cfg: TrainingConfig) -> None:
                     pbar.set_postfix(**infos)
                 else:
                     log_str = f"Epochs [{epoch}/{cfg.n_epochs}]"
-                    log_str += " " + f"Iter [{n+1}/{this_rank_n_batch_per_epoch}]"
+                    log_str += " " + f"Iter [{n + 1}/{this_rank_n_batch_per_epoch}]"
                     log_str += " " + " ".join([f"{k}={v}" for k, v in infos.items()])
 
                     logger.info(log_str)
@@ -406,7 +424,7 @@ def train_megapose(cfg: TrainingConfig) -> None:
             assert ds_iter_val is not None
             model.eval()
             iter_val = iter(ds_iter_val)
-            n_batch = (cfg.val_size // get_world_size()) // cfg.batch_size
+            n_batch = (cfg.val_size // world_size) // cfg.batch_size
             pbar = tqdm(range(n_batch), ncols=120)
             for n in pbar:
                 data = next(iter_val)
@@ -416,6 +434,7 @@ def train_megapose(cfg: TrainingConfig) -> None:
                     train=False,
                 )
                 meters_val["loss_total"].add(loss.item())
+
 
         train()
 
@@ -447,7 +466,7 @@ def train_megapose(cfg: TrainingConfig) -> None:
 
         log_dict = reduce_dict(log_dict)
 
-        if get_rank() == 0:
+        if rank == 0:
             logger.info(cfg.run_id)
             write_logs(
                 cfg,
@@ -455,6 +474,6 @@ def train_megapose(cfg: TrainingConfig) -> None:
                 epoch,
                 log_dict=log_dict,
             )
+        # dist.barrier()
 
-        dist.barrier()
     os._exit(0)
