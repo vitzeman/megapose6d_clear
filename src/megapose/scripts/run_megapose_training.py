@@ -56,7 +56,8 @@ from omegaconf import OmegaConf
 
 from megapose.bop_config import BOP_CONFIG
 from megapose.config import EXP_DIR
-from megapose.training.train_megapose import DatasetConfig, train_megapose
+# from megapose.training.train_megapose import DatasetConfig, train_megapose
+from megapose.training.train_megapose_distributed import DatasetConfig, train_megapose
 from megapose.training.training_config import HardwareConfig, TrainingConfig
 from megapose.utils.logging import get_logger, set_logging_level
 # os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3,4,5,6,7"
@@ -363,9 +364,9 @@ if __name__ == "__main__":
             # renderer_obj_ds_name="gso.filters=10mb_20k.panda3d_bam",
         )
     ] # TODO: ERROR with the path and stuff
-    cfg.batch_size = 64
-    cfg.hardware.n_gpus = 4
-    cfg.n_dataloader_workers = 64
+    cfg.batch_size = 32
+    cfg.hardware.n_gpus = 8
+    cfg.n_dataloader_workers = 8
 
     # print("HERE CUDA VISIB LAST:")
     # print(torch.cuda.device_count())

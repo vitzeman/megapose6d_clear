@@ -117,7 +117,7 @@ def make_scene_dataset(
     # TODO: [VZ] CUSTOM BPROC DATASET BlenderProcLike
     elif ds_name == "bproc":
         ds_dir = BOP_DS_DIR # Path type 
-        print (ds_dir)
+        # print (ds_dir)
         ds = BOPDataset(ds_dir, split="train_pbr", label_format="bproc-{label}")
 
     # Non-BOP challenge BOP dataset splits

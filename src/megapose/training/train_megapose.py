@@ -92,6 +92,8 @@ def train_megapose(cfg: TrainingConfig) -> None:
 
     logger.info(f"Connection established with {world_size} gpus.")
     cfg.global_batch_size = world_size * cfg.batch_size
+    print("world_size", world_size)
+    print("number of gpus", cfg.hardware.n_gpus)
     assert cfg.hardware.n_gpus == world_size
 
     def split_objects_across_gpus(obj_dataset: RigidObjectDataset) -> RigidObjectDataset:

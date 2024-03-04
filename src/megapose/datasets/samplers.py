@@ -89,3 +89,4 @@ class CustomDistributedSampler(Sampler):
             indices_shuffled = np.random.permutation(self.all_indices)[: self.total_epoch_size]
             local_indices = np.array_split(indices_shuffled, self.num_replicas)[self.rank]
         return iter(local_indices)
+
