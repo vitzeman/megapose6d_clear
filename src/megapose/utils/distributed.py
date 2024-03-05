@@ -132,7 +132,7 @@ def get_world_size() -> int:
         world_size = 1
     else:
         world_size = torch.distributed.get_world_size()
-    return world_size
+    return 4
 
 
 def reduce_dict(
@@ -184,5 +184,6 @@ def init_distributed_mode() -> None:
         world_size=world_size,
         # timeout=datetime.timedelta(seconds=4),  # 4 seconds
         timeout=datetime.timedelta(seconds=4 * 1800),  # 2 hours
+        # timeout=5000
     )
     torch.distributed.barrier()
