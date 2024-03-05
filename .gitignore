@@ -21,3 +21,6 @@ my-notebooks/
 tmp/
 *tmp/
 tests.sh
+
+data
+.idea
