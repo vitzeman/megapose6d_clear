@@ -129,7 +129,7 @@ class TrainingConfig(omegaconf.dictconfig.DictConfig):
     loss_alpha_renderings_confidence: float = 0.0
 
     # Visualization
-    do_visualization: bool = False
+    do_visualization: bool = True
     vis_epoch_interval: int = 100
     vis_batch_size: int = 64
     vis_save_only_last: bool = False

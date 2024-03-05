@@ -364,7 +364,7 @@ if __name__ == "__main__":
             # renderer_obj_ds_name="gso.filters=10mb_20k.panda3d_bam",
         )
     ] # TODO: ERROR with the path and stuff
-    cfg.batch_size = 256
+    cfg.batch_size = 128
     cfg.hardware.n_gpus = 8
     cfg.n_dataloader_workers = 8
 

@@ -82,12 +82,15 @@ def train_megapose(cfg):
         os.environ["MASTER_PORT"] = str(12745)
         os.environ["MASTER_ADDR"] = "127.0.1.1"
 
+
     torch.multiprocessing.spawn(
         train_megapose_worker,
         args=(cfg,),
         nprocs=cfg.hardware.n_gpus,
         join=True,
     )
+
+
 
 
 def train_megapose_worker( rank: int, cfg: TrainingConfig,) -> None:
@@ -421,13 +424,12 @@ def train_megapose_worker( rank: int, cfg: TrainingConfig,) -> None:
                 "n_datas": epoch * this_rank_n_batch_per_epoch * cfg.batch_size,
             }
         )
-
+        dist.barrier()
         for string, meters in zip(("train", "val"), (meters_train, meters_val)):
             for k in dict(meters).keys():
                 log_dict[f"{string}_{k}"] = meters[k].mean
 
-        log_dict = reduce_dict(log_dict)
-
+        # log_dict = reduce_dict(log_dict)
         if rank == 0:
             logger.info(cfg.run_id)
             logger.info(f"Epoch [{epoch}/{cfg.n_epochs}]")
@@ -437,5 +439,6 @@ def train_megapose_worker( rank: int, cfg: TrainingConfig,) -> None:
                 epoch,
                 log_dict=log_dict,
             )
+
         dist.barrier()
     os._exit(0)
