@@ -55,6 +55,7 @@ def megapose_forward_loss(
     make_visualization: bool = False,
     train: bool = True,
     is_notebook: bool = False,
+    device = str,
 ) -> torch.Tensor:
 
     # Normalize RGB dims to be in [0,1] from [0,255]
@@ -66,7 +67,11 @@ def megapose_forward_loss(
     bboxes_gt = cast(data.bboxes).float()
 
     batch_size, nchannels, h, w = images.shape
-    device, dtype = TCO_gt.device, TCO_gt.dtype
+    _, dtype = TCO_gt.device, TCO_gt.dtype
+
+    # move K an TCO_gt to the device
+    K = K.to(device)
+    TCO_gt = TCO_gt.to(device)
 
     n_hypotheses = cfg.n_hypotheses
     bce_loss = nn.BCEWithLogitsLoss(reduction="none").cuda()

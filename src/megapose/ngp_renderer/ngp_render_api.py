@@ -6,9 +6,11 @@ import pyngp as ngp  # noqa
 import cv2
 import numpy as np
 from scipy.spatial.transform import Rotation as R
+import os
 
 class ngp_render():
-    def __init__(self, weight_path):
+    def __init__(self, weight_path, device_id):
+        # remove CUDA:0 and set the device id
         self.weight_path = weight_path
         self.testbed = ngp.Testbed()
         self.testbed.load_snapshot(weight_path)

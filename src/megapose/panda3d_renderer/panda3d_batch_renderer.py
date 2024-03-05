@@ -158,6 +158,7 @@ class Panda3dBatchRenderer:
         n_workers: int = 8,
         preload_cache: bool = True,
         split_objects: bool = False,
+        device: Optional[torch.device] = None,
     ):
 
         assert n_workers >= 1
@@ -166,54 +167,55 @@ class Panda3dBatchRenderer:
         # self._split_objects = split_objects
         # self._init_renderers(preload_cache)
         # self._is_closed = False
+        self._device = device
 
-    def make_scene_data(
-        self,
-        labels: List[str],
-        TCO: torch.Tensor,
-        K: torch.Tensor,
-        light_datas: List[List[Panda3dLightData]],
-        resolution: Resolution,
-    ) -> List[SceneData]:
-        """_summary_
-
-        Args:
-            labels (List[str]): _description_
-            TCO (torch.Tensor): (bsz, 4, 4) float
-            K (torch.Tensor): (bsz, 3, 3) float
-            light_datas (List[List[Panda3dLightData]]): _description_
-            resolution (Resolution): _description_
-
-        Returns:
-            List[SceneData]: _description_
-        """
-        bsz = TCO.shape[0]
-        assert TCO.shape == (bsz, 4, 4)
-        assert K.shape == (bsz, 3, 3)
-
-        TCO = TCO.detach()
-        TOC = invert_transform_matrices(TCO).cpu().numpy().astype(np.float32)
-        K = K.cpu().numpy()
-        TWO = Transform((0.0, 0.0, 0.0, 1.0), (0.0, 0.0, 0.0))
-        scene_datas = []
-        for label_n, TOC_n, K_n, lights_n in zip(labels, TOC, K, light_datas):
-            scene_data = SceneData(
-                camera_data=Panda3dCameraData(
-                    TWC=Transform(TOC_n),
-                    K=K_n,
-                    resolution=resolution,
-                ),
-                object_datas=[
-                    Panda3dObjectData(
-                        label=label_n,
-                        TWO=TWO,
-                    )
-                ],
-                light_datas=lights_n,
-            )
-            scene_datas.append(scene_data)
-        return scene_datas
-
+    # def make_scene_data(
+    #     self,
+    #     labels: List[str],
+    #     TCO: torch.Tensor,
+    #     K: torch.Tensor,
+    #     light_datas: List[List[Panda3dLightData]],
+    #     resolution: Resolution,
+    # ) -> List[SceneData]:
+    #     """_summary_
+    #
+    #     Args:
+    #         labels (List[str]): _description_
+    #         TCO (torch.Tensor): (bsz, 4, 4) float
+    #         K (torch.Tensor): (bsz, 3, 3) float
+    #         light_datas (List[List[Panda3dLightData]]): _description_
+    #         resolution (Resolution): _description_
+    #
+    #     Returns:
+    #         List[SceneData]: _description_
+    #     """
+    #     bsz = TCO.shape[0]
+    #     assert TCO.shape == (bsz, 4, 4)
+    #     assert K.shape == (bsz, 3, 3)
+    #
+    #     TCO = TCO.detach()
+    #     TOC = invert_transform_matrices(TCO).cpu().numpy().astype(np.float32)
+    #     K = K.cpu().numpy()
+    #     TWO = Transform((0.0, 0.0, 0.0, 1.0), (0.0, 0.0, 0.0))
+    #     scene_datas = []
+    #     for label_n, TOC_n, K_n, lights_n in zip(labels, TOC, K, light_datas):
+    #         scene_data = SceneData(
+    #             camera_data=Panda3dCameraData(
+    #                 TWC=Transform(TOC_n),
+    #                 K=K_n,
+    #                 resolution=resolution,
+    #             ),
+    #             object_datas=[
+    #                 Panda3dObjectData(
+    #                     label=label_n,
+    #                     TWO=TWO,
+    #                 )
+    #             ],
+    #             light_datas=lights_n,
+    #         )
+    #         scene_datas.append(scene_data)
+    #     return scene_datas
+    #
     # def render(
     #     self,
     #     labels: List[str],
@@ -360,7 +362,7 @@ class Panda3dBatchRenderer:
         labes = str(labels[0]).split("_")[-1]
         labes_new = "object_" + str(int(labes))
         weight_path = os.path.join(new_base_dat_path, labes_new, "base.ingp")
-        ngp_renderer = ngp_render(weight_path)
+        ngp_renderer = ngp_render(weight_path, self._device)
         world_tranformation = json.loads(open(os.path.join(new_base_dat_path, labes_new,"transforms.json")).read())
         #mesh_transformation = np.array(world_tranformation['transformation']
         mesh_transformation = np.eye(4)
@@ -371,8 +373,6 @@ class Panda3dBatchRenderer:
         list_normals = [None for _ in np.arange(len(labels))]
 
         resolution = (resolution[1], resolution[0])
-
-
 
         ngp_renderer.set_resolution(resolution)
 
@@ -398,17 +398,17 @@ class Panda3dBatchRenderer:
             list_normals[i] = normal
             list_depths[i] = depth
 
-        rgbs = torch.stack(list_rgbs).pin_memory().cuda(non_blocking=True)
+        rgbs = torch.stack(list_rgbs).pin_memory().to(self._device)
         rgbs = rgbs.float().permute(0, 3, 1, 2)/255
 
         if render_depth:
-            depths = torch.stack(list_depths).pin_memory().cuda(non_blocking=True)
+            depths = torch.stack(list_depths).pin_memory().to(self._device)
             depths = depths.float().permute(0, 3, 1, 2)
         else:
             depths = None
 
         if render_normals:
-            normals = torch.stack(list_normals).pin_memory().cuda(non_blocking=True)
+            normals = torch.stack(list_normals).pin_memory().to(self._device)
             normals = normals.float().permute(0, 3, 1, 2)/255
         else:
             normals = None

@@ -20,7 +20,7 @@ import os
 import time
 from collections import defaultdict
 from typing import Any, Dict, List
-
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3,4,5,6,7"
 # Third Party
 import numpy as np
 import torch
@@ -94,7 +94,7 @@ def train_megapose_worker( rank: int, cfg: TrainingConfig,) -> None:
     logger = get_logger("main")
     # cudnn.benchmark = True
     # torch.multiprocessing.set_sharing_strategy("file_system")
-    torch.set_num_threads(1)
+    # torch.set_num_threads(1)
 
     cfg = check_update_config(cfg)
     logger.info(f"Training with cfg: \n {OmegaConf.to_yaml(cfg)}")
@@ -144,7 +144,8 @@ def train_megapose_worker( rank: int, cfg: TrainingConfig,) -> None:
     this_rank_labels = set([obj.label for obj in renderer_obj_dataset.objects])
     assert len(renderer_obj_dataset) == len(mesh_obj_dataset)
     logger.info(f"Number of objects to train on (this rank):  {len(mesh_obj_dataset)})")
-    torch.distributed.barrier()
+    dist.barrier()
+
 
     # Scene dataset
     def make_iterable_scene_dataset(
@@ -220,25 +221,22 @@ def train_megapose_worker( rank: int, cfg: TrainingConfig,) -> None:
             persistent_workers=True,
             pin_memory=True,
         )
-
+    device = torch.device("cuda:" + str(rank) if torch.cuda.is_available() else "cpu")
     renderer = Panda3dBatchRenderer(
         object_dataset=renderer_obj_dataset,
         n_workers=cfg.n_rendering_workers,
         preload_cache=False,
         split_objects=True,
+        device=device,
     )
+
 
     mesh_db = (
         MeshDataBase.from_object_ds(mesh_obj_dataset)
         .batched(n_sym=cfg.n_symmetries_batch, resample_n_points=cfg.resample_n_points)
-        .cuda()
-        .float()
+        .to(device)
     )
 
-    # model = create_model_pose(cfg=cfg, renderer=renderer, mesh_db=mesh_db).cuda()
-
-    device = torch.device("cuda:" + str(rank) if torch.cuda.is_available() else "cpu")
-    # print("device : ", device)
     model = create_model_pose(cfg=cfg, renderer=renderer, mesh_db=mesh_db).to(device)
 
     if cfg.run_id_pretrain is not None:
@@ -271,16 +269,6 @@ def train_megapose_worker( rank: int, cfg: TrainingConfig,) -> None:
         model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
     model = sync_model_dva(model, rank, world_size)
 
-    # print(" cuteent cuda device : ", torch.cuda.current_device())
-
-    # model = torch.nn.parallel.DistributedDataParallel(
-    #     model, device_ids=[torch.cuda.current_device()], output_device=torch.cuda.current_device()
-    # )
-
-    # model = torch.nn.parallel.DistributedDataParallel(
-    #     model, device_ids=[str(rank)], output_device=str(rank)
-    # )
-
     model = torch.nn.parallel.DistributedDataParallel(
         model, device_ids=[rank], output_device=rank
     )
@@ -301,6 +289,8 @@ def train_megapose_worker( rank: int, cfg: TrainingConfig,) -> None:
     lr_scheduler.step()
     optimizer._step_count = 0  # type: ignore
 
+    scaler = torch.cuda.amp.GradScaler()
+
     for epoch in range(start_epoch, cfg.n_epochs + 1):
         meters_train: Dict[str, AverageValueMeter] = defaultdict(lambda: AverageValueMeter())
         meters_val: Dict[str, AverageValueMeter] = defaultdict(lambda: AverageValueMeter())
@@ -311,7 +301,7 @@ def train_megapose_worker( rank: int, cfg: TrainingConfig,) -> None:
             n_iterations = min(epoch // cfg.add_iteration_epoch_interval + 1, cfg.n_iterations)
 
         forward_loss_fn = functools.partial(
-            megapose_forward_loss, model=model, cfg=cfg, n_iterations=n_iterations, mesh_db=mesh_db
+            megapose_forward_loss, model=model, cfg=cfg, n_iterations=n_iterations, mesh_db=mesh_db, device=device
         )
 
         def train() -> None:
@@ -324,128 +314,128 @@ def train_megapose_worker( rank: int, cfg: TrainingConfig,) -> None:
 
             for n in pbar:
                 print(" iteration :", n, " rank :", rank,  "epoch : ", epoch)
-        #         start_iter = time.time()
-        #         t = time.time()
-        #         data = next(iter_train)
-        #         time_data = time.time() - t
-        #
-        #         optimizer.zero_grad()
-        #
-        #         debug_dict: Dict[str, Any] = dict()
-        #         timer_forward = CudaTimer(enabled=cfg.cuda_timing)
-        #         timer_forward.start()
-        #
-        #         with torch.cuda.amp.autocast():
-        #             loss = forward_loss_fn(
-        #                 data=data,
-        #                 meters=meters,
-        #                 train=True,
-        #                 debug_dict=debug_dict,
-        #             )
-        #
-        #         time_render = debug_dict["time_render"]
-        #         meters["loss_total"].add(loss.item())
-        #         timer_forward.end()
-        #
-        #         timer_backward = CudaTimer(enabled=cfg.cuda_timing)
-        #         timer_backward.start()
-        #         scaler.scale(loss).backward()
-        #         scaler.unscale_(optimizer)
-        #         total_grad_norm = torch.nn.utils.clip_grad_norm_(
-        #             model.parameters(), max_norm=cfg.clip_grad_norm, norm_type=2
-        #         )
-        #         meters["grad_norm"].add(torch.as_tensor(total_grad_norm).item())
-        #
-        #         scaler.step(optimizer)
-        #         scaler.update()
-        #         timer_backward.end()
-        #
-        #         lr_scheduler.step()
-        #
-        #         time_iter = time.time() - start_iter
-        #         if n > 0:
-        #             meters["time_iter"].add(time_iter)
-        #
-        #         infos = dict(
-        #             loss=f"{loss.item():.2e}",
-        #             tf=f"{timer_forward.elapsed():.3f}",
-        #             tb=f"{timer_backward.elapsed():.3f}",
-        #             tr=f"{time_render:.3f}",
-        #             td=f"{time_data:.3f}",
-        #             tt=f"{time_iter:.3f}",
-        #         )
-        #         infos["it/s"] = f"{1. / time_iter:.2f}"
-        #         if not pbar.disable:
-        #             pbar.set_postfix(**infos)
-        #         else:
-        #             log_str = f"Epochs [{epoch}/{cfg.n_epochs}]"
-        #             log_str += " " + f"Iter [{n + 1}/{this_rank_n_batch_per_epoch}]"
-        #             log_str += " " + " ".join([f"{k}={v}" for k, v in infos.items()])
-        #
-        #             logger.info(log_str)
-        #
-        #         # Only add timing info after the first 10 iters times
-        #         if epoch > 1 or n > 10:
-        #             meters["time_backward"].add(timer_backward.elapsed())
-        #             meters["time_forward"].add(timer_forward.elapsed())
-        #             meters["time_render"].add(time_render)
-        #             meters["time_iter"].add(time_iter)
-        #             meters["time_data"].add(time_data)
-        #
-        # @torch.no_grad()
-        # def validation() -> None:
-        #     assert ds_iter_val is not None
-        #     model.eval()
-        #     iter_val = iter(ds_iter_val)
-        #     n_batch = (cfg.val_size // world_size) // cfg.batch_size
-        #     pbar = tqdm(range(n_batch), ncols=120)
-        #     for n in pbar:
-        #         data = next(iter_val)
-        #         loss = forward_loss_fn(
-        #             data=data,
-        #             meters=meters_val,
-        #             train=False,
-        #         )
-        #         meters_val["loss_total"].add(loss.item())
+                start_iter = time.time()
+                t = time.time()
+                data = next(iter_train)
+                time_data = time.time() - t
+
+                optimizer.zero_grad()
+
+                debug_dict: Dict[str, Any] = dict()
+                timer_forward = CudaTimer(enabled=cfg.cuda_timing)
+                timer_forward.start()
+
+                with torch.cuda.amp.autocast():
+                    loss = forward_loss_fn(
+                        data=data,
+                        meters=meters,
+                        train=True,
+                        debug_dict=debug_dict,
+                    )
+
+                time_render = debug_dict["time_render"]
+                meters["loss_total"].add(loss.item())
+                timer_forward.end()
+
+                timer_backward = CudaTimer(enabled=cfg.cuda_timing)
+                timer_backward.start()
+                scaler.scale(loss).backward()
+                scaler.unscale_(optimizer)
+                total_grad_norm = torch.nn.utils.clip_grad_norm_(
+                    model.parameters(), max_norm=cfg.clip_grad_norm, norm_type=2
+                )
+                meters["grad_norm"].add(torch.as_tensor(total_grad_norm).item())
+
+                scaler.step(optimizer)
+                scaler.update()
+                timer_backward.end()
+
+                lr_scheduler.step()
+
+                time_iter = time.time() - start_iter
+                if n > 0:
+                    meters["time_iter"].add(time_iter)
+
+                infos = dict(
+                    loss=f"{loss.item():.2e}",
+                    tf=f"{timer_forward.elapsed():.3f}",
+                    tb=f"{timer_backward.elapsed():.3f}",
+                    tr=f"{time_render:.3f}",
+                    td=f"{time_data:.3f}",
+                    tt=f"{time_iter:.3f}",
+                )
+                infos["it/s"] = f"{1. / time_iter:.2f}"
+                if not pbar.disable:
+                    pbar.set_postfix(**infos)
+                else:
+                    log_str = f"Epochs [{epoch}/{cfg.n_epochs}]"
+                    log_str += " " + f"Iter [{n + 1}/{this_rank_n_batch_per_epoch}]"
+                    log_str += " " + " ".join([f"{k}={v}" for k, v in infos.items()])
+
+                    logger.info(log_str)
+
+                # Only add timing info after the first 10 iters times
+                if epoch > 1 or n > 10:
+                    meters["time_backward"].add(timer_backward.elapsed())
+                    meters["time_forward"].add(timer_forward.elapsed())
+                    meters["time_render"].add(time_render)
+                    meters["time_iter"].add(time_iter)
+                    meters["time_data"].add(time_data)
+
+        @torch.no_grad()
+        def validation() -> None:
+            assert ds_iter_val is not None
+            model.eval()
+            iter_val = iter(ds_iter_val)
+            n_batch = (cfg.val_size // world_size) // cfg.batch_size
+            pbar = tqdm(range(n_batch), ncols=120)
+            for n in pbar:
+                data = next(iter_val)
+                loss = forward_loss_fn(
+                    data=data,
+                    meters=meters_val,
+                    train=False,
+                )
+                meters_val["loss_total"].add(loss.item())
 
         train()
 
-        # do_eval = epoch % cfg.val_epoch_interval == 0 or epoch == 1
-        # if do_eval and ds_iter_val is not None:
-        #     validation()
-        #
-        # log_dict = dict()
-        # log_dict.update(
-        #     {
-        #         "grad_norm": meters_train["grad_norm"].mean,
-        #         "grad_norm_std": meters_train["grad_norm"].std,
-        #         "learning_rate": optimizer.param_groups[0]["lr"],
-        #         "time_forward": meters_train["time_forward"].mean,
-        #         "time_backward": meters_train["time_backward"].mean,
-        #         "time_data": meters_train["time_data"].mean,
-        #         "cuda_memory": get_cuda_memory(),
-        #         "gpu_memory": get_gpu_memory(),
-        #         "cpu_memory": get_total_memory(),
-        #         "time": time.time(),
-        #         "n_iterations": epoch * cfg.epoch_size // cfg.batch_size,
-        #         "n_datas": epoch * this_rank_n_batch_per_epoch * cfg.batch_size,
-        #     }
-        # )
-        #
-        # for string, meters in zip(("train", "val"), (meters_train, meters_val)):
-        #     for k in dict(meters).keys():
-        #         log_dict[f"{string}_{k}"] = meters[k].mean
-        #
-        # log_dict = reduce_dict(log_dict)
-        #
+        do_eval = epoch % cfg.val_epoch_interval == 0 or epoch == 1
+        if do_eval and ds_iter_val is not None:
+            validation()
+
+        log_dict = dict()
+        log_dict.update(
+            {
+                "grad_norm": meters_train["grad_norm"].mean,
+                "grad_norm_std": meters_train["grad_norm"].std,
+                "learning_rate": optimizer.param_groups[0]["lr"],
+                "time_forward": meters_train["time_forward"].mean,
+                "time_backward": meters_train["time_backward"].mean,
+                "time_data": meters_train["time_data"].mean,
+                "cuda_memory": get_cuda_memory(),
+                "gpu_memory": get_gpu_memory(),
+                "cpu_memory": get_total_memory(),
+                "time": time.time(),
+                "n_iterations": epoch * cfg.epoch_size // cfg.batch_size,
+                "n_datas": epoch * this_rank_n_batch_per_epoch * cfg.batch_size,
+            }
+        )
+
+        for string, meters in zip(("train", "val"), (meters_train, meters_val)):
+            for k in dict(meters).keys():
+                log_dict[f"{string}_{k}"] = meters[k].mean
+
+        log_dict = reduce_dict(log_dict)
+
         if rank == 0:
             logger.info(cfg.run_id)
             logger.info(f"Epoch [{epoch}/{cfg.n_epochs}]")
-            # write_logs(
-            #     cfg,
-            #     model,
-            #     epoch,
-            #     log_dict=log_dict,
-            # )
+            write_logs(
+                cfg,
+                model,
+                epoch,
+                log_dict=log_dict,
+            )
         dist.barrier()
     os._exit(0)

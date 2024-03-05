@@ -48,8 +48,8 @@ os.environ["OMP_NUM_THREADS"] = "1"
 if "EGL_VISIBLE_DEVICES" not in os.environ:
     os.environ['EGL_VISIBLE_DEVICES'] = '0,1,2,3,4,5,6,7'
 
-for k in (
-    "MKL_NUM_THREADS", "OMP_NUM_THREADS",
-    "CUDA_VISIBLE_DEVICES", "EGL_VISIBLE_DEVICES"):
-    if k in os.environ:
-        print(f"{k}: {os.environ[k]}")
+# for k in (
+#     "MKL_NUM_THREADS", "OMP_NUM_THREADS",
+#     "CUDA_VISIBLE_DEVICES", "EGL_VISIBLE_DEVICES"):
+#     if k in os.environ:
+#         print(f"{k}: {os.environ[k]}")

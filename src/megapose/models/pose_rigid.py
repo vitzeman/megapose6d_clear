@@ -399,8 +399,8 @@ class PosePredictor(nn.Module):
                 light_datas=light_datas,
             )
 
-            rgb_images_ngp = render_data_ngp.rgbs.cpu().numpy()
-            rgb_images_ngp = np.transpose(rgb_images_ngp, (0, 2, 3, 1))
+            # rgb_images_ngp = render_data_ngp.rgbs.cpu().numpy()
+            # rgb_images_ngp = np.transpose(rgb_images_ngp, (0, 2, 3, 1))
 
             # for i in range(len(rgb_images_ngp)):
             #     rgb_ngp = rgb_images_ngp[i] * 255.0
@@ -435,8 +435,8 @@ class PosePredictor(nn.Module):
                 light_datas=light_datas,
             )
 
-            rgb_images = render_data.rgbs.cpu().numpy()
-            rgb_images = np.transpose(rgb_images, (0, 2, 3, 1))
+            # rgb_images = render_data.rgbs.cpu().numpy()
+            # rgb_images = np.transpose(rgb_images, (0, 2, 3, 1))
 
             # # save all the images using opencv
             # for i in range(len(rgb_images)):
@@ -617,6 +617,9 @@ class PosePredictor(nn.Module):
                 renders,
                 tCR,
             )
+
+            # print("images_crop", images_crop.get_device())
+            # print("renders", renders.get_device())
             x = torch.cat((images_crop, renders), dim=1)
 
             # would expect this to error out
