@@ -14,14 +14,40 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+# for fine model
+# def change_keys_of_older_models(state_dict):
+#     new_state_dict = dict()
+#     for k, v in state_dict.items():
+#         if k.startswith("backbone.backbone"):
+#             new_k = "backbone." + k[len("backbone.backbone.") :]
+#         elif k.startswith("backbone.head.0."):
+#             new_k = "views_logits_head." + k[len("backbone.head.0.") :]
+#         else:
+#             new_k = k
+#         new_state_dict[new_k] = state_dict[k]
+#     return new_state_dict
+
+# for coarse model
+
 def change_keys_of_older_models(state_dict):
     new_state_dict = dict()
+    print("SHOULD CHANGE")
     for k, v in state_dict.items():
+        # print(k)
+        # print(v.shape)
         if k.startswith("backbone.backbone"):
-            new_k = "backbone." + k[len("backbone.backbone.") :]
+            new_k = "backbone." + k[len("backbone.backbone."):]
         elif k.startswith("backbone.head.0."):
-            new_k = "views_logits_head." + k[len("backbone.head.0.") :]
+            new_k = "views_logits_head." + k[len("backbone.head.0."):]
+
         else:
             new_k = k
+
+        # if new_k in  ["views_logits_head.weight"]:
+        #     print("-------CHANGING STUFF")
+        #     new_k = "pose_fc.weight"
+        # elif new_k in ["views_logits_head.bias"]:
+        #     new_k = "pose_fc.bias"
+
         new_state_dict[new_k] = state_dict[k]
     return new_state_dict

@@ -364,10 +364,22 @@ if __name__ == "__main__":
             # renderer_obj_ds_name="gso.filters=10mb_20k.panda3d_bam",
         )
     ] # TODO: ERROR with the path and stuff
-    cfg.batch_size = 128
+    cfg.batch_size = 16
     cfg.hardware.n_gpus = 8
     cfg.n_dataloader_workers = 8
 
+    cfg.run_id_pretrain = "coarse-rgb-906902141"
+    cfg.n_rendered_views = 1
+    cfg.predict_rendered_views_logits = True
+    cfg.predict_pose_update = False
+    cfg.hypotheses_init_method = "coarse_classif_multiview_paper"
+    cfg.n_hypotheses = 16
+
+    cfg.lr = 0.0003
+    cfg.weight_decay = 0.0
+    cfg.clip_grad_norm = 1000
+    cfg.n_epochs_warmup = 0
+    cfg.loss_alpha_renderings_confidence = 1
     # print("HERE CUDA VISIB LAST:")
     # print(torch.cuda.device_count())
     # print()

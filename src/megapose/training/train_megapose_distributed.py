@@ -91,13 +91,11 @@ def train_megapose(cfg):
     )
 
 
-
-
 def train_megapose_worker( rank: int, cfg: TrainingConfig,) -> None:
     logger = get_logger("main")
     # cudnn.benchmark = True
     # torch.multiprocessing.set_sharing_strategy("file_system")
-    # torch.set_num_threads(1)
+    torch.set_num_threads(1)
 
     cfg = check_update_config(cfg)
     logger.info(f"Training with cfg: \n {OmegaConf.to_yaml(cfg)}")

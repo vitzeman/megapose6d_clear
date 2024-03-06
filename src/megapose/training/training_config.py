@@ -143,3 +143,6 @@ class TrainingConfig(omegaconf.dictconfig.DictConfig):
     # Infos
     global_batch_size: Optional[int] = 64
     hardware: HardwareConfig = HardwareConfig()
+
+
+
