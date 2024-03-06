@@ -364,7 +364,7 @@ if __name__ == "__main__":
             # renderer_obj_ds_name="gso.filters=10mb_20k.panda3d_bam",
         )
     ] # TODO: ERROR with the path and stuff
-    cfg.batch_size = 16
+    cfg.batch_size = 50
     cfg.hardware.n_gpus = 8
     cfg.n_dataloader_workers = 8
 
@@ -373,7 +373,7 @@ if __name__ == "__main__":
     cfg.predict_rendered_views_logits = True
     cfg.predict_pose_update = False
     cfg.hypotheses_init_method = "coarse_classif_multiview_paper"
-    cfg.n_hypotheses = 16
+    cfg.n_hypotheses = 5
 
     cfg.lr = 0.0003
     cfg.weight_decay = 0.0
