@@ -36,9 +36,16 @@ class BOPObjectDataset(RigidObjectDataset):
         infos = json.loads(infos_file.read_text())
         objects = []
         for obj_id, bop_info in infos.items():
+            # obj_id = int(obj_id)
+            # obj_path = ds_dir / f"object_{obj_id}"
+            # obj_label = f"obj_{obj_id:06d}"
+            # obj_label = f"object_{obj_id:06d}"
+            # obj_label = f"object_{obj_id}"
+            # mesh_path = obj_path / "base.obj"
+            # mesh_path = (ds_dir / obj_label).with_suffix(".ply").as_posix()
             obj_id = int(obj_id)
             obj_label = f"obj_{obj_id:06d}"
-            mesh_path = (ds_dir / obj_label).with_suffix(".ply").as_posix()
+            mesh_path = (ds_dir / obj_label).with_suffix(".obj").as_posix()
             symmetries_discrete = [
                 DiscreteSymmetry(pose=np.array(x).reshape((4, 4)))
                 for x in bop_info.get("symmetries_discrete", [])

@@ -22,7 +22,9 @@ import cv2
 
 
 def assign_gpu() -> None:
-    os.environ["CUDA_VISIBLE_DEVICES"]="0,1,2,3,4,5,6,7"
+    # os.environ["CUDA_VISIBLE_DEVICES"]="0,1,2,3,4,5,6,7"
+    os.environ["EGL_VISIBLE_DEVICES"]="0"
+
     # if "CUDA_VISIBLE_DEVICES" in os.environ:
     #     device_ids = os.environ["CUDA_VISIBLE_DEVICES"]
     #     device_ids = device_ids.split(",")
@@ -46,7 +48,8 @@ os.environ["MKL_NUM_THREADS"] = "1"
 os.environ["OMP_NUM_THREADS"] = "1"
 
 if "EGL_VISIBLE_DEVICES" not in os.environ:
-    os.environ['EGL_VISIBLE_DEVICES'] = '0,1,2,3,4,5,6,7'
+    # os.environ['EGL_VISIBLE_DEVICES'] = '0,1,2,3,4,5,6,7'
+    os.environ['EGL_VISIBLE_DEVICES'] = '0'
 
 # for k in (
 #     "MKL_NUM_THREADS", "OMP_NUM_THREADS",

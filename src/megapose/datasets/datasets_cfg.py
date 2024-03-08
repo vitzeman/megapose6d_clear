@@ -232,7 +232,7 @@ def make_object_dataset(ds_name: str) -> RigidObjectDataset:
 
     # TODO: [VZ] CUSTOM BPROC DATASET
     elif ds_name == "bproc":
-        ds = BOPObjectDataset(BOP_DS_DIR / "meshes", label_format="bproc-{label}")
+        ds = BOPObjectDataset(BOP_DS_DIR / "meshes_ngp", label_format="bproc-{label}")
 
     # BOP models converted for Panda3D
     # TODO: Is this necessary ?

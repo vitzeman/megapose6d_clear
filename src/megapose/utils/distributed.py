@@ -132,7 +132,15 @@ def get_world_size() -> int:
         world_size = 1
     else:
         world_size = torch.distributed.get_world_size()
+    return world_size
+
+def get_world_size_dva() -> int:
+    if not torch.distributed.is_initialized():
+        world_size = 1
+    else:
+        world_size = torch.distributed.get_world_size()
     return 8
+
 
 
 def reduce_dict(
@@ -166,6 +174,39 @@ def reduce_dict(
             values /= world_size
         reduced_dict = {k: v.item() for k, v in zip(names, values)}
     return reduced_dict
+
+def reduce_dict_dva(
+    input_dict: Dict[str, Any],
+    average: bool = True,
+) -> Dict[str, Any]:
+    """
+    https://github.com/pytorch/vision/blob/master/references/detection/utils.py
+    Args:
+        input_dict (dict): all the values will be reduced
+        average (bool): whether to do average or sum
+    Reduce the values in the dictionary from all processes so that all processes
+    have the averaged results. Returns a dict with the same fields as
+    input_dict, after reduction.
+    """
+    world_size = get_world_size()
+    # if world_size < 2:
+    #     return input_dict
+    with torch.no_grad():
+        names = []
+        values = []
+        # sort the keys so that they are consistent across processes
+        for k in sorted(input_dict.keys()):
+            print("K is ", k)
+            print("value  is ", input_dict[k])
+            names.append(k)
+            values.append(input_dict[k])
+        values = torch.tensor(values).float().cuda()
+        dist.all_reduce(values, op=dist.ReduceOp.SUM)
+        if average:
+            values /= world_size
+        reduced_dict = {k: v.item() for k, v in zip(names, values)}
+    return reduced_dict
+
 
 
 def init_distributed_mode() -> None:

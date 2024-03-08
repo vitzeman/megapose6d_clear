@@ -59,6 +59,8 @@ class MeshDataBase:
         self.obj_dict = {obj.label: obj for obj in obj_list}
         self.obj_list = obj_list
         self.infos = {obj.label: dict() for obj in obj_list}
+        # print("---------------------------------------")
+        # print("MESHES DICT", self.obj_dict)
         self.meshes = {
             l: as_mesh(
                 trimesh.load(
@@ -71,6 +73,7 @@ class MeshDataBase:
             )
             for l, obj in self.obj_dict.items()
         }
+
 
         for label, obj in self.obj_dict.items():
             if obj.diameter_meters is None:

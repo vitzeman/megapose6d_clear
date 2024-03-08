@@ -56,8 +56,8 @@ from omegaconf import OmegaConf
 
 from megapose.bop_config import BOP_CONFIG
 from megapose.config import EXP_DIR
-# from megapose.training.train_megapose import DatasetConfig, train_megapose
-from megapose.training.train_megapose_distributed import DatasetConfig, train_megapose
+from megapose.training.train_megapose import DatasetConfig, train_megapose
+# from megapose.training.train_megapose_distributed import DatasetConfig, train_megapose
 from megapose.training.training_config import HardwareConfig, TrainingConfig
 from megapose.utils.logging import get_logger, set_logging_level
 # os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3,4,5,6,7"
@@ -375,7 +375,7 @@ if __name__ == "__main__":
     cfg.hypotheses_init_method = "coarse_classif_multiview_paper"
     cfg.n_hypotheses = 5
 
-    cfg.lr = 0.0003
+    cfg.lr = 0.001
     cfg.weight_decay = 0.0
     cfg.clip_grad_norm = 1000
     cfg.n_epochs_warmup = 0

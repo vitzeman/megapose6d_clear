@@ -21,6 +21,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 from megapose.config import LOCAL_DATA_DIR
+from pathlib import Path
 
 import cv2
 import os
@@ -383,6 +384,10 @@ class PosePredictor(nn.Module):
         assert isinstance(self.renderer, Panda3dBatchRenderer)
 
         render_mask = False
+        local_data = Path("/shared_datasets/example-train/meshes_ngp")
+        loc = os.path.join(local_data, "rendered_examples", labels[0])
+        if not os.path.exists(loc):
+            os.mkdir(loc)
 
         renderer = "ngp"
 
@@ -399,13 +404,15 @@ class PosePredictor(nn.Module):
                 light_datas=light_datas,
             )
 
-            # rgb_images_ngp = render_data_ngp.rgbs.cpu().numpy()
-            # rgb_images_ngp = np.transpose(rgb_images_ngp, (0, 2, 3, 1))
+            rgb_images_ngp = render_data_ngp.rgbs.cpu().numpy()
+            rgb_images_ngp = np.transpose(rgb_images_ngp, (0, 2, 3, 1))
 
-            # for i in range(len(rgb_images_ngp)):
-            #     rgb_ngp = rgb_images_ngp[i] * 255.0
-            #     rgb_ngp = cv2.cvtColor(rgb_ngp, cv2.COLOR_RGB2BGR)
-            #     cv2.imwrite(os.path.join(loc, str(i) + "_rendered_image_rgb_ngp" + ".png"), rgb_ngp)
+
+
+            for i in range(len(rgb_images_ngp)):
+                rgb_ngp = rgb_images_ngp[i] * 255.0
+                rgb_ngp = cv2.cvtColor(rgb_ngp, cv2.COLOR_RGB2BGR)
+                cv2.imwrite(os.path.join(loc, str(i) + "_rendered_image_rgb_ngp" + ".png"), rgb_ngp)
 
             cat_list = []
             cat_list.append(render_data_ngp.rgbs)

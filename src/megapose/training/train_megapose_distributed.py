@@ -59,6 +59,7 @@ from megapose.training.utils import (
 from megapose.utils.distributed import (
     get_rank,
     get_world_size,
+    get_world_size_dva,
     init_distributed_mode,
     reduce_dict,
     sync_config,
@@ -102,7 +103,7 @@ def train_megapose_worker( rank: int, cfg: TrainingConfig,) -> None:
 
     dist.init_process_group(backend='nccl', world_size=cfg.hardware.n_gpus, rank=rank, timeout=timedelta(seconds=20))
 
-    world_size = get_world_size()
+    world_size = get_world_size_dva()
 
     cfg = sync_config_dva(cfg, rank, world_size)
 
